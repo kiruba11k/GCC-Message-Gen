@@ -33,9 +33,9 @@ with st.sidebar:
     newsdata_key=st.secrets["NEWS_DATA"]
     gnews_key=st.secrets["GNEWS"]
     groq_key=st.secrets["GROQ"]
-    tavelly_key=st.secrets["TAVELLY"]
+    tavily_key=st.secrets["TAVELLY"]
 
-    client = TavilyClient(tavelly_key)
+    client = TavilyClient(tavily_key)
     
     # newsapi_key = st.text_input("NewsAPI Key", type="password", 
     #                            help="Get from https://newsapi.org/register")
