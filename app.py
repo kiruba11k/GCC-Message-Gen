@@ -66,11 +66,11 @@ def process_tavily_results(results):
         })
     return processed
 
-# Search for recent content using only Tavily
-def search_recent_content(person_name, company=None, designation=None):
-    """Search for recent content using Tavily API"""
+# Search for content specifically by the person
+def search_content_by_person(person_name, company=None, designation=None):
+    """Search for articles, blogs, news, and posts by the person using Tavily API"""
     # Create cache key
-    cache_key = f"{person_name}_{company}_{designation}"
+    cache_key = f"{person_name}_{company}_{designation}_by_author"
     
     # Check cache first
     if cache_key in st.session_state.search_cache:
@@ -79,32 +79,66 @@ def search_recent_content(person_name, company=None, designation=None):
         if datetime.now() - cached_data['timestamp'] < timedelta(hours=1):
             return cached_data['results']
     
-    query = f"{person_name} {company} {designation}".strip()
     results = []
     
-    # Use Tavily for search
+    # Use Tavily for search with author-specific queries
     if tavily_key:
         try:
             client = TavilyClient(tavily_key)
-            query_parts = [person_name]
+            
+            # Create queries specifically to find content by the person
+            queries = [
+                f'"{person_name}" article OR blog OR post OR "written by" OR "authored by"',
+                f'"{person_name}" interview OR podcast OR "guest post" OR "thought leadership"'
+            ]
+            
             if company:
-                query_parts.append(company)
+                queries.append(f'"{person_name}" "{company}" article OR blog OR post')
             if designation:
-                query_parts.append(designation)
-            query_string = " ".join(query_parts)
+                queries.append(f'"{person_name}" "{designation}" article OR blog OR post')
             
-            response = client.search(
-                query=query_string,
-                max_results=5,
-                search_depth="advanced"
-            )
+            # Execute all queries and combine results
+            all_results = []
+            for query in queries:
+                try:
+                    response = client.search(
+                        query=query,
+                        max_results=3,  # Fewer results per query to stay within limits
+                        search_depth="advanced",
+                        include_answer=False
+                    )
+                    
+                    if response and "results" in response and response["results"]:
+                        all_results.extend(response["results"])
+                        track_usage("Tavily")
+                except Exception as e:
+                    st.sidebar.warning(f"Query '{query}' failed: {str(e)}")
+                    continue
             
-            if response and "results" in response and response["results"]:
-                results = process_tavily_results(response["results"])
-                track_usage("Tavily")
-                st.sidebar.success("Tavily search found results!")
+            # Remove duplicates by URL
+            seen_urls = set()
+            unique_results = []
+            for result in all_results:
+                if result.get('url') and result['url'] not in seen_urls:
+                    seen_urls.add(result['url'])
+                    unique_results.append(result)
+            
+            if unique_results:
+                results = process_tavily_results(unique_results)
+                st.sidebar.success(f"Found {len(results)} content pieces by {person_name}")
             else:
-                st.sidebar.info("Tavily search returned no results")
+                st.sidebar.info(f"No content directly by {person_name} found. Trying general search.")
+                # Fallback to general search if no author-specific content found
+                general_query = f"{person_name} {company} {designation}".strip()
+                response = client.search(
+                    query=general_query,
+                    max_results=5,
+                    search_depth="advanced"
+                )
+                if response and "results" in response and response["results"]:
+                    results = process_tavily_results(response["results"])
+                    track_usage("Tavily")
+                    
         except Exception as e:
             st.sidebar.error(f"Tavily Search error: {str(e)}")
     else:
@@ -213,16 +247,16 @@ def main():
         if not person_name:
             st.error("Please provide at least a person name")
         else:
-            with st.spinner("Searching for recent content..."):
-                # Search for content using Tavily
-                content_data = search_recent_content(person_name, company, designation)
+            with st.spinner("Searching for content by this person..."):
+                # Search for content using Tavily with author-specific queries
+                content_data = search_content_by_person(person_name, company, designation)
                 st.session_state.content_data = content_data
                 st.session_state.searched = True
                 
                 if not content_data:
-                    st.warning(f"No recent content found for {person_name}. Try providing more details like company or designation.")
+                    st.warning(f"No content found by {person_name}. Try providing more details like company or designation.")
                 else:
-                    st.success(f"Found {len(content_data)} relevant content pieces")
+                    st.success(f"Found {len(content_data)} content pieces by {person_name}")
                     
                     # Show source content
                     with st.expander("Source Content Found"):
@@ -243,13 +277,13 @@ def main():
             # Use cached content if available, otherwise search
             if st.session_state.content_data is None or not st.session_state.searched:
                 st.info("No content has been searched yet. Searching for content first...")
-                with st.spinner("Searching for recent content..."):
-                    content_data = search_recent_content(person_name, company, designation)
+                with st.spinner("Searching for content by this person..."):
+                    content_data = search_content_by_person(person_name, company, designation)
                     st.session_state.content_data = content_data
                     st.session_state.searched = True
                     
                     if not content_data:
-                        st.warning(f"No recent content found for {person_name}. Try providing more details like company or designation.")
+                        st.warning(f"No content found by {person_name}. Try providing more details like company or designation.")
             else:
                 content_data = st.session_state.content_data
             
@@ -272,7 +306,7 @@ def main():
             else:
                 # Offer manual input as fallback
                 with st.expander("Manual Content Input"):
-                    st.info("Since we couldn't find recent content automatically, you can add details manually:")
+                    st.info("Since we couldn't find content by this person automatically, you can add details manually:")
                     manual_title = st.text_input("Article/Post Title")
                     manual_content = st.text_area("Content Summary")
                     
