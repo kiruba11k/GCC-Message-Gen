@@ -268,7 +268,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # Call Groq API
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama3-70b-8192",  # Fast and cost-effective
+            model="llama-3.3-70b-versatile",  # Fast and cost-effective
             temperature=0.7,
             max_tokens=150
         )
