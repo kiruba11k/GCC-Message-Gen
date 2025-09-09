@@ -8,17 +8,12 @@ from datetime import datetime, timedelta
 from tavily import TavilyClient
 
 # Initialize session state
+
 if 'api_usage' not in st.session_state:
-    st.session_state.api_usage = {"Tavily": 0}
+    st.session_state.api_usage = {"NewsAPI": 0, "Newsdata": 0, "GNews": 0, "Tavily": 0}
 
 if 'search_cache' not in st.session_state:
     st.session_state.search_cache = {}
-
-if 'content_data' not in st.session_state:
-    st.session_state.content_data = None
-
-if 'searched' not in st.session_state:
-    st.session_state.searched = False
 
 # Set page config
 st.set_page_config(
@@ -32,12 +27,27 @@ st.caption("Generate professional messages based on recent content - completely 
 
 # Sidebar for API configuration
 with st.sidebar:
-    # Get API keys from secrets
-    tavily_key = st.secrets["TAVELLY"]
-    groq_key = st.secrets["GROQ"]
+    # st.header("API Configuration")
+    # st.info("Get free API keys from the links below")
+    newsapi_key = st.secrets["NEWS_API_KEY"]  
+    newsdata_key=st.secrets["NEWS_DATA"]
+    gnews_key=st.secrets["GNEWS"]
+    groq_key=st.secrets["GROQ"]
+    tavily_key=st.secrets["TAVELLY"]
+
+    client = TavilyClient(tavily_key)
+    
+    # newsapi_key = st.text_input("NewsAPI Key", type="password", 
+    #                            help="Get from https://newsapi.org/register")
+    # newsdata_key = st.text_input("Newsdata.io Key", type="password",
+    #                             help="Get from https://newsdata.io/pricing")
+    # gnews_key = st.text_input("GNews Key", type="password",
+    #                          help="Get from https://gnews.io/register")
+    # groq_key = st.text_input("Groq API Key", type="password",
+    #                         help="Get from https://console.groq.com/keys")
     
     st.divider()
-    st.caption("Made with ❤️ using Streamlit, Groq, and Tavily API")
+    st.caption("Made with ❤️ using Streamlit, Groq, and free news APIs")
 
 # Track API usage
 def track_usage(api_name):
@@ -48,45 +58,55 @@ def track_usage(api_name):
         st.session_state.api_usage[api_name] = 1
     
     # Show warning if approaching limits
-    limits = {"Tavily": 1000}
+    limits = {"NewsAPI": 900, "Newsdata": 180, "GNews": 90,"Tavily":100}
     if api_name in limits and st.session_state.api_usage[api_name] > limits[api_name]:
         st.warning(f"Approaching free limit for {api_name}. Some features may be limited.")
 
-# Process Tavily results
-def process_tavily_results(results):
-    """Process Tavily results into standardized format"""
+# Process API results
+def process_newsapi_results(articles):
+    """Process NewsAPI results into standardized format"""
     processed = []
-    for item in results:
-        # Extract and format date
-        date_str = item.get('published_date', '')
-        if date_str:
-            try:
-                # Parse the date and format it nicely
-                date_obj = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
-                formatted_date = date_obj.strftime("%B %d, %Y")
-            except:
-                formatted_date = date_str
-        else:
-            formatted_date = "Recent"
-            
+    for article in articles:
         processed.append({
-            'title': item.get('title', ''),
-            'snippet': item.get('content', ''),
-            'url': item.get('url', ''),
-            'date': formatted_date,
-            'source': 'Tavily Search',
-            'raw_date': date_str
+            'title': article.get('title', ''),
+            'snippet': article.get('description', ''),
+            'url': article.get('url', ''),
+            'date': article.get('publishedAt', ''),
+            'source': article.get('source', {}).get('name', '')
         })
-    
-    # Sort by date (most recent first)
-    processed.sort(key=lambda x: x.get('raw_date', ''), reverse=True)
     return processed
 
-# Search for recent content specifically by the person
-def search_content_by_person(person_name, company=None, designation=None):
-    """Search for recent articles, blogs, news, and posts by the person using Tavily API"""
+def process_newsdata_results(articles):
+    """Process Newsdata.io results into standardized format"""
+    processed = []
+    for article in articles:
+        processed.append({
+            'title': article.get('title', ''),
+            'snippet': article.get('description', ''),
+            'url': article.get('link', ''),
+            'date': article.get('pubDate', ''),
+            'source': article.get('source_id', '')
+        })
+    return processed
+
+def process_gnews_results(articles):
+    """Process GNews results into standardized format"""
+    processed = []
+    for article in articles:
+        processed.append({
+            'title': article.get('title', ''),
+            'snippet': article.get('description', ''),
+            'url': article.get('url', ''),
+            'date': article.get('publishedAt', ''),
+            'source': article.get('source', {}).get('name', '')
+        })
+    return processed
+
+# Search for recent content
+def search_recent_content(person_name, company=None, designation=None):
+    """Search for recent content using free APIs with fallback logic"""
     # Create cache key
-    cache_key = f"{person_name}_{company}_{designation}_author_content"
+    cache_key = f"{person_name}_{company}_{designation}"
     
     # Check cache first
     if cache_key in st.session_state.search_cache:
@@ -95,101 +115,97 @@ def search_content_by_person(person_name, company=None, designation=None):
         if datetime.now() - cached_data['timestamp'] < timedelta(hours=1):
             return cached_data['results']
     
+    query = f"{person_name} {company} {designation}".strip()
     results = []
     
-    # Use Tavily for search with author-specific queries focused on recent content
-    if tavily_key:
+    # Try NewsAPI first if key is provided
+    if newsapi_key:
         try:
-            client = TavilyClient(tavily_key)
+            url = "https://newsapi.org/v2/everything"
+            params = {
+                "q": query,
+                "pageSize": 5,
+                "sortBy": "publishedAt",
+                "apiKey": newsapi_key
+            }
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
             
-            # Create queries specifically to find recent content by the person
-            queries = [
-                f'"{person_name}" article OR blog OR post OR "written by" OR "authored by" -site:linkedin.com',
-                f'"{person_name}" interview OR podcast OR "guest post" OR "thought leadership"',
-                f'"{person_name}" recent publications OR latest articles OR recent posts',
-                f'"{person_name}" medium.com OR substack.com OR "personal blog"'
-            ]
-            
-            if company:
-                queries.append(f'"{person_name}" "{company}" recent articles OR blog posts')
-                queries.append(f'"{person_name}" site:{company.replace(" ", "").lower()}.com')
-            if designation:
-                queries.append(f'"{person_name}" "{designation}" recent publications')
-            
-            # Execute all queries and combine results
-            all_results = []
-            for query in queries:
-                try:
-                    response = client.search(
-                        query=query,
-                        max_results=3,
-                        search_depth="advanced",
-                        include_answer=False,
-                        # More specific parameters for recent content
-                        time_range="month"  # Get content from the past month
-                    )
-                    
-                    if response and "results" in response and response["results"]:
-                        # Filter for recent content (within last 60 days)
-                        recent_cutoff = datetime.now() - timedelta(days=60)
-                        for result in response["results"]:
-                            pub_date = result.get('published_date', '')
-                            if pub_date:
-                                try:
-                                    pub_datetime = datetime.strptime(pub_date, "%Y-%m-%dT%H:%M:%S")
-                                    if pub_datetime >= recent_cutoff:
-                                        all_results.append(result)
-                                except:
-                                    # If date parsing fails, include anyway
-                                    all_results.append(result)
-                            else:
-                                # If no date, include but mark as potentially old
-                                result['published_date'] = "Unknown"
-                                all_results.append(result)
-                        
-                        track_usage("Tavily")
-                except Exception as e:
-                    st.sidebar.warning(f"Query '{query}' failed: {str(e)}")
-                    continue
-            
-            # Remove duplicates by URL and ensure content is actually by the author
-            seen_urls = set()
-            unique_results = []
-            for result in all_results:
-                if (result.get('url') and 
-                    result['url'] not in seen_urls and 
-                    (person_name.lower() in result.get('content', '').lower() or 
-                     person_name.lower() in result.get('title', '').lower())):
-                    seen_urls.add(result['url'])
-                    unique_results.append(result)
-            
-            if unique_results:
-                results = process_tavily_results(unique_results)
-                st.sidebar.success(f"Found {len(results)} recent content pieces by {person_name}")
-            else:
-                st.sidebar.info(f"No recent content directly by {person_name} found. Trying general search.")
-                # Fallback to general search with time restriction
-                general_query = f"{person_name} {company} {designation}".strip()
-                response = client.search(
-                    query=general_query,
-                    max_results=5,
-                    search_depth="advanced",
-                    time_range="month"  # Focus on recent content
-                )
-                if response and "results" in response and response["results"]:
-                    results = process_tavily_results(response["results"])
-                    track_usage("Tavily")
-                    
+            if data.get('status') == 'ok' and data.get('totalResults', 0) > 0:
+                results = process_newsapi_results(data['articles'])
+                track_usage("NewsAPI")
         except Exception as e:
-            st.sidebar.error(f"Tavily Search error: {str(e)}")
-    else:
-        st.sidebar.error("Tavily API key is missing")
+            st.sidebar.error(f"NewsAPI error: {str(e)}")
+    
+    # Try Newsdata.io as second option if no results and key provided
+    if not results and newsdata_key:
+        try:
+            url = "https://newsdata.io/api/1/news"
+            params = {
+                "q": query,
+                "language": "en",
+                "apikey": newsdata_key
+            }
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+            
+            if data.get('status') == 'success' and data.get('totalResults', 0) > 0:
+                results = process_newsdata_results(data.get('results', []))
+                track_usage("Newsdata")
+        except Exception as e:
+            st.sidebar.error(f"Newsdata.io error: {str(e)}")
+    
+    # Try GNews as third option if no results and key provided
+    if not results and gnews_key:
+        try:
+            url = "https://gnews.io/api/v4/search"
+            params = {
+                "q": query,
+                "max": 5,
+                "apikey": gnews_key
+            }
+            response = requests.get(url, params=params, timeout=10)
+            data = response.json()
+            
+            if data.get('totalArticles', 0) > 0:
+                results = process_gnews_results(data.get('articles', []))
+                track_usage("GNews")
+        except Exception as e:
+            st.sidebar.error(f"GNews error: {str(e)}")
     
     # Cache the results
     st.session_state.search_cache[cache_key] = {
         'results': results,
         'timestamp': datetime.now()
     }
+
+    if not results and tavily_key:
+        try:
+            client = TavilyClient(tavily_key)
+            query_parts = [person_name]
+            if company:
+                query_parts.append(company)
+            if designation:
+                query_parts.append(designation)
+            query_string = " ".join(query_parts)
+            
+            response = client.search(query=query_string)
+            if response and "results" in response and response["results"]:
+                results = []
+                for item in response["results"][:5]:
+                    results.append({
+                        'title': item.get('title', ''),
+                        'snippet': item.get('snippet', ''),
+                        'url': item.get('url', ''),
+                        'date': item.get('publishedAt', ''),
+                        'source': 'Tavily'
+                    })
+                st.sidebar.success("Tavily search found results!")
+                track_usage("Tavily")
+
+        except Exception as e:
+            st.sidebar.error(f"Tavily Search error: {str(e)}")
+
     
     return results
 
@@ -215,43 +231,24 @@ def enforce_constraints(message):
     
     return message
 
-# Initialize content rotation index
-if 'content_rotation_index' not in st.session_state:
-    st.session_state.content_rotation_index = 0
-
-# Modified message generation function to use different content
+# Generate message with Groq
 def generate_message(person_name, content_data, company=None, designation=None):
-    """Generate personalized message using Groq API with content rotation"""
+    """Generate personalized message using Groq API"""
     if not groq_key:
         st.error("Please add your Groq API key in the sidebar")
         return None
     
-    # Rotate through available content for variety
-    if content_data:
-        rotation_index = st.session_state.content_rotation_index % len(content_data)
-        selected_content = content_data[rotation_index]
-        st.session_state.content_rotation_index += 1
-    else:
-        selected_content = None
-    
     try:
         client = Groq(api_key=groq_key)
         
-        # Prepare content context - use the rotated content
+        # Prepare content context from search results
         content_context = ""
-        if selected_content:
-            content_context = f"""
-            RECENT CONTENT TO REFERENCE:
-            - Title: {selected_content['title']}
-            - Key points: {selected_content['snippet']}
-            - Publication date: {selected_content['date']}
-            """
-        else:
-            content_context = "No specific recent content found for reference."
+        for i, content in enumerate(content_data[:2]):  # Use top 2 results
+            content_context += f"{i+1}. {content['title']}: {content['snippet']}\n"
         
         # Construct precise prompt with constraints
         prompt = f"""
-        Create a personalized message for {person_name} referencing their specific recent content.
+        Create a personalized message for {person_name} referencing their recent content.
         MAXIMUM 250 CHARACTERS. Be concise and professional.
         
         STRICTLY AVOID these words: exploring, interested, learning, No easy feat, 
@@ -259,23 +256,19 @@ def generate_message(person_name, content_data, company=None, designation=None):
         No small feat, No easy task, Stood out.
         
         Follow this pattern from these examples:
-        - "Hi [Name], Saw your note on [specific topic], completely agree, especially with [specific insight]. I think a lot about [related area]. Let's connect and exchange ideas."
-        - "Hi [Name], Saw your post on [specific platform/topic], timely and sharp. As someone working on [your relevant work], I'd love to connect and exchange ideas on how [trend] might reshape [field]."
+        - "Hi Niall, Saw your note on how fast digital marketing is evolving, completely agree, especially with how nuanced brand-building is getting across markets. I think a lot about where performance meets storytelling. Let's connect and exchange ideas."
+        - "Hi Shane, Saw your post on Pinterest as the 'farmers market of search', timely and sharp. As someone working on digital and content experiences for brands, I'd love to connect and exchange ideas on how discovery trends might reshape content planning."
         
+        Recent content to reference:
         {content_context}
         
-        Additional context:
-        - Person: {person_name}
-        - Company: {company if company else 'Not specified'}
-        - Designation: {designation if designation else 'Not specified'}
-        
-        Generate a similar personalized message for {person_name} that references their recent content:
+        Generate a similar message for {person_name}:
         """
         
         # Call Groq API
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
+            model="llama3-70b-8192",  # Fast and cost-effective
             temperature=0.7,
             max_tokens=150
         )
@@ -301,59 +294,38 @@ def main():
             company = st.text_input("Company", placeholder="e.g., ICanCare")
         designation = st.text_input("Designation", placeholder="e.g., Cybersecurity Expert")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            search_submitted = st.form_submit_button("Search Recent Content")
-        with col2:
-            generate_submitted = st.form_submit_button("Generate Message")
+        submitted = st.form_submit_button("Generate Message")
         
-    if search_submitted:
+    if submitted:
         if not person_name:
             st.error("Please provide at least a person name")
         else:
-            with st.spinner("Searching for recent content by this person..."):
-                # Search for content using Tavily with author-specific queries
-                content_data = search_content_by_person(person_name, company, designation)
-                st.session_state.content_data = content_data
-                st.session_state.searched = True
+            with st.spinner("Searching for recent content..."):
+                # Search for content
+                content_data = search_recent_content(person_name, company, designation)
                 
                 if not content_data:
-                    st.warning(f"No recent content found by {person_name}. Try providing more details like company or designation.")
+                    st.warning(f"No recent content found for {person_name}. Try providing more details like company or designation.")
+                    
+                    # Offer manual input as fallback
+                    with st.expander("Manual Content Input"):
+                        st.info("Since we couldn't find recent content automatically, you can add details manually:")
+                        manual_title = st.text_input("Article/Post Title")
+                        manual_content = st.text_area("Content Summary")
+                        
+                        if manual_title and manual_content:
+                            content_data = [{
+                                'title': manual_title,
+                                'snippet': manual_content,
+                                'url': '',
+                                'date': '',
+                                'source': 'Manual Input'
+                            }]
                 else:
-                    st.success(f"Found {len(content_data)} recent content pieces by {person_name}")
-                    
-                    # Show source content
-                    with st.expander("Recent Content Found"):
-                        for i, content in enumerate(content_data[:3]):  # Show top 3 sources
-                            st.write(f"**Source {i+1}:** {content['title']}")
-                            st.write(f"**Date:** {content['date']}")
-                            st.write(f"**Summary:** {content['snippet']}")
-                            if content['url']:
-                                st.write(f"**URL:** {content['url']}")
-                            if content['source']:
-                                st.write(f"**Source:** {content['source']}")
-                            if i < len(content_data) - 1:
-                                st.divider()
-    
-    if generate_submitted:
-        if not person_name:
-            st.error("Please provide at least a person name")
-        else:
-            # Use cached content if available, otherwise search
-            if st.session_state.content_data is None or not st.session_state.searched:
-                st.info("No content has been searched yet. Searching for content first...")
-                with st.spinner("Searching for recent content by this person..."):
-                    content_data = search_content_by_person(person_name, company, designation)
-                    st.session_state.content_data = content_data
-                    st.session_state.searched = True
-                    
-                    if not content_data:
-                        st.warning(f"No recent content found by {person_name}. Try providing more details like company or designation.")
-            else:
-                content_data = st.session_state.content_data
+                    st.success(f"Found {len(content_data)} relevant content pieces")
             
             if content_data:
-                with st.spinner("Generating personalized message..."):
+                with st.spinner("Generating message..."):
                     # Generate message
                     message = generate_message(person_name, content_data, company, designation)
                 
@@ -363,46 +335,25 @@ def main():
                     st.text_area("Generated Message", message, height=150, key="message_output")
                     st.caption(f"Character count: {len(message)}/250")
                     
+                    # Show source content
+                    with st.expander("Source Content Used"):
+                        for i, content in enumerate(content_data[:2]):  # Show top 2 sources
+                            st.write(f"**Source {i+1}:** {content['title']}")
+                            st.write(f"**Summary:** {content['snippet']}")
+                            if content['url']:
+                                st.write(f"**URL:** {content['url']}")
+                            if content['source']:
+                                st.write(f"**Source:** {content['source']}")
+                            if i < len(content_data) - 1:
+                                st.divider()
+                    
                     # Copy button
                     if st.button("Copy Message to Clipboard"):
-                        st.write("Message copied to clipboard!")
-                    
-                    # Option to generate another message with different content
-                    if len(content_data) > 1:
-                        if st.button("Generate Another Message (Different Content)"):
-                            with st.spinner("Generating alternative message..."):
-                                alt_message = generate_message(person_name, content_data, company, designation)
-                            if alt_message:
-                                st.text_area("Alternative Message", alt_message, height=150, key="alt_message_output")
+                        st.write(" Message copied to clipboard!")
+                        # Note: Streamlit doesn't directly support clipboard operations
+                        # This is a visual indication only
                 else:
                     st.error("Failed to generate message. Please check your Groq API key.")
-            else:
-                # Offer manual input as fallback
-                with st.expander("Manual Content Input"):
-                    st.info("Since we couldn't find recent content by this person automatically, you can add details manually:")
-                    manual_title = st.text_input("Article/Post Title")
-                    manual_content = st.text_area("Content Summary")
-                    manual_date = st.date_input("Publication Date", value=datetime.now())
-                    
-                    if st.button("Generate from Manual Content"):
-                        if manual_title and manual_content:
-                            content_data = [{
-                                'title': manual_title,
-                                'snippet': manual_content,
-                                'url': '',
-                                'date': manual_date.strftime("%B %d, %Y"),
-                                'source': 'Manual Input'
-                            }]
-                            
-                            with st.spinner("Generating message..."):
-                                message = generate_message(person_name, content_data, company, designation)
-                            
-                            if message:
-                                st.success("Message generated successfully!")
-                                st.text_area("Generated Message", message, height=150, key="manual_message_output")
-                                st.caption(f"Character count: {len(message)}/250")
-                        else:
-                            st.error("Please provide both a title and content summary")
     
     # Display API usage in sidebar
     with st.sidebar:
