@@ -30,6 +30,8 @@ with st.sidebar:
     newsdata_key=st.secrets["NEWS_DATA"]
     gnews_key=st.secrets["GNEWS"]
     groq_key=st.secrets["GROQ"]
+    tavelly_key=st.secrets["TAVELLY"]
+    
     # newsapi_key = st.text_input("NewsAPI Key", type="password", 
     #                            help="Get from https://newsapi.org/register")
     # newsdata_key = st.text_input("Newsdata.io Key", type="password",
@@ -171,6 +173,42 @@ def search_recent_content(person_name, company=None, designation=None):
         'results': results,
         'timestamp': datetime.now()
     }
+
+    if not results and tavelly_key:
+        try:
+            headers = {
+                "Authorization": f"Bearer {tavelly_key}"
+            }
+            tavelly_url = "https://api.tavelly.com/search"
+            query_parts = [person_name]
+            if company:
+                query_parts.append(company)
+            if designation:
+                query_parts.append(designation)
+            query_string = " ".join(query_parts)
+
+            params = {
+                "q": query_string,
+                "limit": 5,
+                "language": "en"
+            }
+            response = requests.get(tavelly_url, headers=headers, params=params, timeout=10)
+            data = response.json()
+
+            if 'results' in data and len(data['results']) > 0:
+                results = []
+                for item in data['results']:
+                    results.append({
+                        'title': item.get('title', ''),
+                        'snippet': item.get('snippet', ''),
+                        'url': item.get('url', ''),
+                        'date': item.get('published_at', ''),
+                        'source': item.get('source', '')
+                    })
+                st.sidebar.success("Tavelly Search found results!")
+        except Exception as e:
+            st.sidebar.error(f"Tavelly Search error: {str(e)}")
+
     
     return results
 
