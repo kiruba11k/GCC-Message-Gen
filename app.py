@@ -57,17 +57,31 @@ def process_tavily_results(results):
     """Process Tavily results into standardized format"""
     processed = []
     for item in results:
+        # Extract and format date
+        date_str = item.get('published_date', '')
+        if date_str:
+            try:
+                # Parse the date and format it nicely
+                date_obj = datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S")
+                formatted_date = date_obj.strftime("%B %d, %Y")
+            except:
+                formatted_date = date_str
+        else:
+            formatted_date = "Recent"
+            
         processed.append({
             'title': item.get('title', ''),
             'snippet': item.get('content', ''),
             'url': item.get('url', ''),
-            'date': item.get('published_date', ''),
-            'source': 'Tavily Search'
+            'date': formatted_date,
+            'source': 'Tavily Search',
+            'raw_date': date_str
         })
+    
+    # Sort by date (most recent first)
+    processed.sort(key=lambda x: x.get('raw_date', ''), reverse=True)
     return processed
 
-# Search for content specifically by the person
-# Search for recent content specifically by the person
 # Search for recent content specifically by the person
 def search_content_by_person(person_name, company=None, designation=None):
     """Search for recent articles, blogs, news, and posts by the person using Tavily API"""
@@ -90,9 +104,10 @@ def search_content_by_person(person_name, company=None, designation=None):
             
             # Create queries specifically to find recent content by the person
             queries = [
-                f'"{person_name}" article OR blog OR post OR "written by" OR "authored by"',
+                f'"{person_name}" article OR blog OR post OR "written by" OR "authored by" -site:linkedin.com',
                 f'"{person_name}" interview OR podcast OR "guest post" OR "thought leadership"',
-                f'"{person_name}" recent publications OR latest articles OR recent posts'
+                f'"{person_name}" recent publications OR latest articles OR recent posts',
+                f'"{person_name}" medium.com OR substack.com OR "personal blog"'
             ]
             
             if company:
@@ -109,12 +124,29 @@ def search_content_by_person(person_name, company=None, designation=None):
                         query=query,
                         max_results=3,
                         search_depth="advanced",
-                        days=30,  # Focus on content from the past 30 days :cite[2]:cite[8]
-                        include_answer=False
+                        include_answer=False,
+                        # More specific parameters for recent content
+                        time_range="month"  # Get content from the past month
                     )
                     
                     if response and "results" in response and response["results"]:
-                        all_results.extend(response["results"])
+                        # Filter for recent content (within last 60 days)
+                        recent_cutoff = datetime.now() - timedelta(days=60)
+                        for result in response["results"]:
+                            pub_date = result.get('published_date', '')
+                            if pub_date:
+                                try:
+                                    pub_datetime = datetime.strptime(pub_date, "%Y-%m-%dT%H:%M:%S")
+                                    if pub_datetime >= recent_cutoff:
+                                        all_results.append(result)
+                                except:
+                                    # If date parsing fails, include anyway
+                                    all_results.append(result)
+                            else:
+                                # If no date, include but mark as potentially old
+                                result['published_date'] = "Unknown"
+                                all_results.append(result)
+                        
                         track_usage("Tavily")
                 except Exception as e:
                     st.sidebar.warning(f"Query '{query}' failed: {str(e)}")
@@ -142,7 +174,7 @@ def search_content_by_person(person_name, company=None, designation=None):
                     query=general_query,
                     max_results=5,
                     search_depth="advanced",
-                    days=30  # Still focus on recent content :cite[2]:cite[8]
+                    time_range="month"  # Focus on recent content
                 )
                 if response and "results" in response and response["results"]:
                     results = process_tavily_results(response["results"])
@@ -160,6 +192,7 @@ def search_content_by_person(person_name, company=None, designation=None):
     }
     
     return results
+
 # Enforce message constraints
 def enforce_constraints(message):
     """Ensure message meets all constraints"""
@@ -182,7 +215,7 @@ def enforce_constraints(message):
     
     return message
 
-# Generate message with Groq
+# Initialize content rotation index
 if 'content_rotation_index' not in st.session_state:
     st.session_state.content_rotation_index = 0
 
@@ -207,13 +240,18 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # Prepare content context - use the rotated content
         content_context = ""
         if selected_content:
-            content_context = f"1. {selected_content['title']}: {selected_content['snippet']}\n"
+            content_context = f"""
+            RECENT CONTENT TO REFERENCE:
+            - Title: {selected_content['title']}
+            - Key points: {selected_content['snippet']}
+            - Publication date: {selected_content['date']}
+            """
         else:
-            content_context = "No specific content found for reference."
+            content_context = "No specific recent content found for reference."
         
         # Construct precise prompt with constraints
         prompt = f"""
-        Create a personalized message for {person_name} referencing their specific content.
+        Create a personalized message for {person_name} referencing their specific recent content.
         MAXIMUM 250 CHARACTERS. Be concise and professional.
         
         STRICTLY AVOID these words: exploring, interested, learning, No easy feat, 
@@ -224,10 +262,14 @@ def generate_message(person_name, content_data, company=None, designation=None):
         - "Hi [Name], Saw your note on [specific topic], completely agree, especially with [specific insight]. I think a lot about [related area]. Let's connect and exchange ideas."
         - "Hi [Name], Saw your post on [specific platform/topic], timely and sharp. As someone working on [your relevant work], I'd love to connect and exchange ideas on how [trend] might reshape [field]."
         
-        Specific content to reference:
         {content_context}
         
-        Generate a similar message for {person_name}:
+        Additional context:
+        - Person: {person_name}
+        - Company: {company if company else 'Not specified'}
+        - Designation: {designation if designation else 'Not specified'}
+        
+        Generate a similar personalized message for {person_name} that references their recent content:
         """
         
         # Call Groq API
@@ -261,7 +303,7 @@ def main():
         
         col1, col2 = st.columns(2)
         with col1:
-            search_submitted = st.form_submit_button("Search Content")
+            search_submitted = st.form_submit_button("Search Recent Content")
         with col2:
             generate_submitted = st.form_submit_button("Generate Message")
         
@@ -269,21 +311,22 @@ def main():
         if not person_name:
             st.error("Please provide at least a person name")
         else:
-            with st.spinner("Searching for content by this person..."):
+            with st.spinner("Searching for recent content by this person..."):
                 # Search for content using Tavily with author-specific queries
                 content_data = search_content_by_person(person_name, company, designation)
                 st.session_state.content_data = content_data
                 st.session_state.searched = True
                 
                 if not content_data:
-                    st.warning(f"No content found by {person_name}. Try providing more details like company or designation.")
+                    st.warning(f"No recent content found by {person_name}. Try providing more details like company or designation.")
                 else:
-                    st.success(f"Found {len(content_data)} content pieces by {person_name}")
+                    st.success(f"Found {len(content_data)} recent content pieces by {person_name}")
                     
                     # Show source content
-                    with st.expander("Source Content Found"):
-                        for i, content in enumerate(content_data[:2]):  # Show top 2 sources
+                    with st.expander("Recent Content Found"):
+                        for i, content in enumerate(content_data[:3]):  # Show top 3 sources
                             st.write(f"**Source {i+1}:** {content['title']}")
+                            st.write(f"**Date:** {content['date']}")
                             st.write(f"**Summary:** {content['snippet']}")
                             if content['url']:
                                 st.write(f"**URL:** {content['url']}")
@@ -299,18 +342,18 @@ def main():
             # Use cached content if available, otherwise search
             if st.session_state.content_data is None or not st.session_state.searched:
                 st.info("No content has been searched yet. Searching for content first...")
-                with st.spinner("Searching for content by this person..."):
+                with st.spinner("Searching for recent content by this person..."):
                     content_data = search_content_by_person(person_name, company, designation)
                     st.session_state.content_data = content_data
                     st.session_state.searched = True
                     
                     if not content_data:
-                        st.warning(f"No content found by {person_name}. Try providing more details like company or designation.")
+                        st.warning(f"No recent content found by {person_name}. Try providing more details like company or designation.")
             else:
                 content_data = st.session_state.content_data
             
             if content_data:
-                with st.spinner("Generating message..."):
+                with st.spinner("Generating personalized message..."):
                     # Generate message
                     message = generate_message(person_name, content_data, company, designation)
                 
@@ -323,14 +366,23 @@ def main():
                     # Copy button
                     if st.button("Copy Message to Clipboard"):
                         st.write("Message copied to clipboard!")
+                    
+                    # Option to generate another message with different content
+                    if len(content_data) > 1:
+                        if st.button("Generate Another Message (Different Content)"):
+                            with st.spinner("Generating alternative message..."):
+                                alt_message = generate_message(person_name, content_data, company, designation)
+                            if alt_message:
+                                st.text_area("Alternative Message", alt_message, height=150, key="alt_message_output")
                 else:
                     st.error("Failed to generate message. Please check your Groq API key.")
             else:
                 # Offer manual input as fallback
                 with st.expander("Manual Content Input"):
-                    st.info("Since we couldn't find content by this person automatically, you can add details manually:")
+                    st.info("Since we couldn't find recent content by this person automatically, you can add details manually:")
                     manual_title = st.text_input("Article/Post Title")
                     manual_content = st.text_area("Content Summary")
+                    manual_date = st.date_input("Publication Date", value=datetime.now())
                     
                     if st.button("Generate from Manual Content"):
                         if manual_title and manual_content:
@@ -338,7 +390,7 @@ def main():
                                 'title': manual_title,
                                 'snippet': manual_content,
                                 'url': '',
-                                'date': '',
+                                'date': manual_date.strftime("%B %d, %Y"),
                                 'source': 'Manual Input'
                             }]
                             
