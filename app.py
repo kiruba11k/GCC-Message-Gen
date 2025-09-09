@@ -9,7 +9,7 @@ from tavily import TavilyClient
 
 # Initialize session state
 if 'api_usage' not in st.session_state:
-    st.session_state.api_usage = {"NewsAPI": 0, "Newsdata": 0, "GNews": 0, "Tavily": 0}
+    st.session_state.api_usage = {"Tavily": 0}
 
 if 'search_cache' not in st.session_state:
     st.session_state.search_cache = {}
@@ -32,14 +32,12 @@ st.caption("Generate professional messages based on recent content - completely 
 
 # Sidebar for API configuration
 with st.sidebar:
-    newsapi_key = st.secrets["NEWS_API_KEY"]  
-    newsdata_key = st.secrets["NEWS_DATA"]
-    gnews_key = st.secrets["GNEWS"]
-    groq_key = st.secrets["GROQ"]
+    # Get API keys from secrets
     tavily_key = st.secrets["TAVELLY"]
+    groq_key = st.secrets["GROQ"]
     
     st.divider()
-    st.caption("Made with ❤️ using Streamlit, Groq, and free news APIs")
+    st.caption("Made with ❤️ using Streamlit, Groq, and Tavily API")
 
 # Track API usage
 def track_usage(api_name):
@@ -50,53 +48,27 @@ def track_usage(api_name):
         st.session_state.api_usage[api_name] = 1
     
     # Show warning if approaching limits
-    limits = {"NewsAPI": 900, "Newsdata": 180, "GNews": 90, "Tavily": 100}
+    limits = {"Tavily": 1000}
     if api_name in limits and st.session_state.api_usage[api_name] > limits[api_name]:
         st.warning(f"Approaching free limit for {api_name}. Some features may be limited.")
 
-# Process API results
-def process_newsapi_results(articles):
-    """Process NewsAPI results into standardized format"""
+# Process Tavily results
+def process_tavily_results(results):
+    """Process Tavily results into standardized format"""
     processed = []
-    for article in articles:
+    for item in results:
         processed.append({
-            'title': article.get('title', ''),
-            'snippet': article.get('description', ''),
-            'url': article.get('url', ''),
-            'date': article.get('publishedAt', ''),
-            'source': article.get('source', {}).get('name', '')
+            'title': item.get('title', ''),
+            'snippet': item.get('content', ''),
+            'url': item.get('url', ''),
+            'date': item.get('published_date', ''),
+            'source': 'Tavily Search'
         })
     return processed
 
-def process_newsdata_results(articles):
-    """Process Newsdata.io results into standardized format"""
-    processed = []
-    for article in articles:
-        processed.append({
-            'title': article.get('title', ''),
-            'snippet': article.get('description', ''),
-            'url': article.get('link', ''),
-            'date': article.get('pubDate', ''),
-            'source': article.get('source_id', '')
-        })
-    return processed
-
-def process_gnews_results(articles):
-    """Process GNews results into standardized format"""
-    processed = []
-    for article in articles:
-        processed.append({
-            'title': article.get('title', ''),
-            'snippet': article.get('description', ''),
-            'url': article.get('url', ''),
-            'date': article.get('publishedAt', ''),
-            'source': article.get('source', {}).get('name', '')
-        })
-    return processed
-
-# Search for recent content
+# Search for recent content using only Tavily
 def search_recent_content(person_name, company=None, designation=None):
-    """Search for recent content using free APIs with fallback logic"""
+    """Search for recent content using Tavily API"""
     # Create cache key
     cache_key = f"{person_name}_{company}_{designation}"
     
@@ -110,77 +82,8 @@ def search_recent_content(person_name, company=None, designation=None):
     query = f"{person_name} {company} {designation}".strip()
     results = []
     
-    # Try NewsAPI first if key is provided
-    if newsapi_key:
-        try:
-            url = "https://newsapi.org/v2/everything"
-            
-            # Build a more specific query for person and company
-            query_parts = []
-            if person_name:
-                # Add person name in quotes for exact match
-                query_parts.append(f'"{person_name}"')
-            if company:
-                query_parts.append(f'"{company}"')
-            
-            # Join with AND to require both terms
-            newsapi_query = " AND ".join(query_parts) if query_parts else person_name
-            
-            params = {
-                "q": newsapi_query,
-                "pageSize": 5,
-                "sortBy": "publishedAt",
-                "language": "en",
-                "apiKey": newsapi_key
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
-            
-            if data.get('status') == 'ok' and data.get('totalResults', 0) > 0:
-                results = process_newsapi_results(data['articles'])
-                track_usage("NewsAPI")
-        except Exception as e:
-            st.sidebar.error(f"NewsAPI error: {str(e)}")
-    
-    # Try Newsdata.io as second option if no results and key provided
-    if not results and newsdata_key:
-        try:
-            url = "https://newsdata.io/api/1/news"
-            params = {
-                "q": query,
-                "language": "en",
-                "apikey": newsdata_key
-            }
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
-            
-            if data.get('status') == 'success' and data.get('totalResults', 0) > 0:
-                results = process_newsdata_results(data.get('results', []))
-                track_usage("Newsdata")
-        except Exception as e:
-            st.sidebar.error(f"Newsdata.io error: {str(e)}")
-    
-    # Try GNews as third option if no results and key provided
-    if not results and gnews_key:
-        try:
-            url = "https://gnews.io/api/v4/search"
-            params = {
-                "q": query,
-                "max": 5,
-                "apikey": gnews_key
-            }
-            response = requests.get(url, params=params, timeout=10)
-            data = response.json()
-            
-            if data.get('totalArticles', 0) > 0:
-                results = process_gnews_results(data.get('articles', []))
-                track_usage("GNews")
-        except Exception as e:
-            st.sidebar.error(f"GNews error: {str(e)}")
-    
-    # Try Tavily as fourth option if no results and key provided
-    if not results and tavily_key:
+    # Use Tavily for search
+    if tavily_key:
         try:
             client = TavilyClient(tavily_key)
             query_parts = [person_name]
@@ -190,20 +93,22 @@ def search_recent_content(person_name, company=None, designation=None):
                 query_parts.append(designation)
             query_string = " ".join(query_parts)
             
-            response = client.search(query=query_string)
+            response = client.search(
+                query=query_string,
+                max_results=5,
+                search_depth="advanced"
+            )
+            
             if response and "results" in response and response["results"]:
-                results = []
-                for item in response["results"][:5]:
-                    results.append({
-                        'title': item.get('title', ''),
-                        'snippet': item.get('snippet', ''),
-                        'url': item.get('url', ''),
-                        'date': item.get('publishedAt', ''),
-                        'source': 'Tavily'
-                    })
+                results = process_tavily_results(response["results"])
                 track_usage("Tavily")
+                st.sidebar.success("Tavily search found results!")
+            else:
+                st.sidebar.info("Tavily search returned no results")
         except Exception as e:
             st.sidebar.error(f"Tavily Search error: {str(e)}")
+    else:
+        st.sidebar.error("Tavily API key is missing")
     
     # Cache the results
     st.session_state.search_cache[cache_key] = {
@@ -309,7 +214,7 @@ def main():
             st.error("Please provide at least a person name")
         else:
             with st.spinner("Searching for recent content..."):
-                # Search for content
+                # Search for content using Tavily
                 content_data = search_recent_content(person_name, company, designation)
                 st.session_state.content_data = content_data
                 st.session_state.searched = True
