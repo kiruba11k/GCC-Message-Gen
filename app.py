@@ -27,8 +27,8 @@ st.set_page_config(
 )
 
 # App title and description
-st.title("✉ AI-Powered Personalized Message Generator")
-st.caption("Generate professional messages based on recent content - completely free!")
+st.title("✉ GCC Message Generator")
+st.caption("Generate professional messages based on recent content")
 
 # Sidebar for API configuration
 with st.sidebar:
@@ -213,7 +213,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         
         # Construct precise prompt with constraints
         prompt = f"""
-        Create a personalized message for {person_name} referencing their specific content.
+        Create a personalized message for {person_name} by analyzing and referencing their specific content.
         MAXIMUM 250 CHARACTERS. Be concise and professional.
         
         STRICTLY AVOID these words: exploring, interested, learning, No easy feat, 
@@ -221,8 +221,27 @@ def generate_message(person_name, content_data, company=None, designation=None):
         No small feat, No easy task, Stood out.
         
         Follow this pattern from these examples:
-        - "Hi [Name], Saw your note on [specific topic], completely agree, especially with [specific insight]. I think a lot about [related area]. Let's connect and exchange ideas."
-        - "Hi [Name], Saw your post on [specific platform/topic], timely and sharp. As someone working on [your relevant work], I'd love to connect and exchange ideas on how [trend] might reshape [field]."
+        - "Hi Ajith,
+          I saw your post about speaking on "Unleashing the Future of Supply Chain through the AI Revolution" at JW Marriott, Mumbaiâ€”exciting to see AI transforming supply chains. As someone passionate about leveraging tech to optimize global supply chains, Iâ€™d love to connect.
+          Best,
+          Kingshuk Hazra"
+        - "Hi Rupesh,
+            Saw your recent repost of Simon Sinek's opinion on leadership, a powerful video on how empathy is important to be an effective leader in today's work environments.
+            As a fellow InfoSec leader, I'd love to connect with you.
+            Regards,
+            Kingshuk Hazra"
+        - "Hi Manish, 
+Saw your video @ETCIO highlighting balancing security measures with operational efficiency & agility. I couldn't agree more on how the CyberSec strategy must be aligned with the operational deployments in any organization.
+As a fellow InfoSec enthusiast, I'd love to connect.
+Regards,
+Kingshuk Hazra"
+         - " Hi Ravi,
+Your recent content around OT-IT convergence and the crisp video on digital fundamentals really stood out. Iâ€™m equally interested in how IT leaders like you drive real-world transformation while keeping tech simple and human. Letâ€™s connect and share ideas!
+Best, Kingshuk Hazra"
+        - "Hi Niall,
+Saw your note on how fast digital marketing is evolving, completely agree, especially with how nuanced brand-building is getting across markets. I think a lot about where performance meets storytelling. Letâ€™s connect and exchange ideas.
+Best,
+Kingshuk Hazra"
         
         Specific content to reference:
         {content_context}
