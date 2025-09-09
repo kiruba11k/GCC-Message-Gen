@@ -22,7 +22,7 @@ if 'searched' not in st.session_state:
 
 # Set page config
 st.set_page_config(
-    page_title="Free Personalized Message Generator",
+    page_title="GCC Message Generator",
     layout="centered"
 )
 
@@ -222,7 +222,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         
         Follow this pattern from these examples:
         - "Hi Ajith,
-          I saw your post about speaking on "Unleashing the Future of Supply Chain through the AI Revolution" at JW Marriott, Mumbaiâ€”exciting to see AI transforming supply chains. As someone passionate about leveraging tech to optimize global supply chains, Iâ€™d love to connect.
+          I saw your post about speaking on "Unleashing the Future of Supply Chain through the AI Revolution" at JW Marriott, Mumbaiâ€”exciting to see AI transforming supply chains. As someone passionate about leveraging tech to optimize global supply chains, I'd love to connect.
           Best,
           Kingshuk Hazra"
         - "Hi Rupesh,
@@ -236,10 +236,10 @@ As a fellow InfoSec enthusiast, I'd love to connect.
 Regards,
 Kingshuk Hazra"
          - " Hi Ravi,
-Your recent content around OT-IT convergence and the crisp video on digital fundamentals really stood out. Iâ€™m equally interested in how IT leaders like you drive real-world transformation while keeping tech simple and human. Letâ€™s connect and share ideas!
+Your recent content around OT-IT convergence and the crisp video on digital fundamentals really stood out. I'm equally interested in how IT leaders like you drive real-world transformation while keeping tech simple and human. Let's connect and share ideas!
 Best, Kingshuk Hazra"
         - "Hi Niall,
-Saw your note on how fast digital marketing is evolving, completely agree, especially with how nuanced brand-building is getting across markets. I think a lot about where performance meets storytelling. Letâ€™s connect and exchange ideas.
+Saw your note on how fast digital marketing is evolving, completely agree, especially with how nuanced brand-building is getting across markets. I think a lot about where performance meets storytelling. Let's connect and exchange ideas.
 Best,
 Kingshuk Hazra"
         
