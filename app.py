@@ -119,18 +119,33 @@ def search_recent_content(person_name, company=None, designation=None):
     results = []
     
     # Try NewsAPI first if key is provided
+        # Try NewsAPI first if key is provided
     if newsapi_key:
         try:
             url = "https://newsapi.org/v2/everything"
+        
+        # Build a more specific query for person and company
+            query_parts = []
+            if person_name:
+            # Add person name in quotes for exact match
+                query_parts.append(f'"{person_name}"')
+            if company:
+                query_parts.append(f'"{company}"')
+        
+        # Join with AND to require both terms
+            newsapi_query = " AND ".join(query_parts) if query_parts else person_name
+        
             params = {
-                "q": query,
-                "pageSize": 5,
-                "sortBy": "publishedAt",
-                "apiKey": newsapi_key
+            "q": newsapi_query,
+            "pageSize": 5,
+            "sortBy": "publishedAt",
+            "language": "en",
+            "apiKey": newsapi_key
             }
+        
             response = requests.get(url, params=params, timeout=10)
             data = response.json()
-            
+        
             if data.get('status') == 'ok' and data.get('totalResults', 0) > 0:
                 results = process_newsapi_results(data['articles'])
                 track_usage("NewsAPI")
