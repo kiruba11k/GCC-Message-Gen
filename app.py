@@ -243,7 +243,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         
         # Prepare content context from search results
         content_context = ""
-        for i, content in enumerate(content_data[:2]):  # Use top 2 results
+        for i, content in enumerate(content_data[:3]):  # Use top 2 results
             content_context += f"{i+1}. {content['title']}: {content['snippet']}\n"
         
         # Construct precise prompt with constraints
