@@ -5,10 +5,13 @@ import re
 import json
 import os
 from datetime import datetime, timedelta
+from tavily import TavilyClient
 
 # Initialize session state
+
 if 'api_usage' not in st.session_state:
-    st.session_state.api_usage = {"NewsAPI": 0, "Newsdata": 0, "GNews": 0}
+    st.session_state.api_usage = {"NewsAPI": 0, "Newsdata": 0, "GNews": 0, "Tavily": 0}
+
 if 'search_cache' not in st.session_state:
     st.session_state.search_cache = {}
 
@@ -31,6 +34,8 @@ with st.sidebar:
     gnews_key=st.secrets["GNEWS"]
     groq_key=st.secrets["GROQ"]
     tavelly_key=st.secrets["TAVELLY"]
+
+    client = TavilyClient(tavily_key)
     
     # newsapi_key = st.text_input("NewsAPI Key", type="password", 
     #                            help="Get from https://newsapi.org/register")
@@ -53,7 +58,7 @@ def track_usage(api_name):
         st.session_state.api_usage[api_name] = 1
     
     # Show warning if approaching limits
-    limits = {"NewsAPI": 900, "Newsdata": 180, "GNews": 90}
+    limits = {"NewsAPI": 900, "Newsdata": 180, "GNews": 90,"Tavily":100}
     if api_name in limits and st.session_state.api_usage[api_name] > limits[api_name]:
         st.warning(f"Approaching free limit for {api_name}. Some features may be limited.")
 
@@ -174,40 +179,32 @@ def search_recent_content(person_name, company=None, designation=None):
         'timestamp': datetime.now()
     }
 
-    if not results and tavelly_key:
+    if not results and tavily_key:
         try:
-            headers = {
-                "Authorization": f"Bearer {tavelly_key}"
-            }
-            tavelly_url = "https://api.tavelly.com/search"
+            client = TavilyClient(tavily_key)
             query_parts = [person_name]
             if company:
                 query_parts.append(company)
             if designation:
                 query_parts.append(designation)
             query_string = " ".join(query_parts)
-
-            params = {
-                "q": query_string,
-                "limit": 5,
-                "language": "en"
-            }
-            response = requests.get(tavelly_url, headers=headers, params=params, timeout=10)
-            data = response.json()
-
-            if 'results' in data and len(data['results']) > 0:
+            
+            response = client.search(query=query_string)
+            if response and "results" in response and response["results"]:
                 results = []
-                for item in data['results']:
+                for item in response["results"][:5]:
                     results.append({
                         'title': item.get('title', ''),
                         'snippet': item.get('snippet', ''),
                         'url': item.get('url', ''),
-                        'date': item.get('published_at', ''),
-                        'source': item.get('source', '')
+                        'date': item.get('publishedAt', ''),
+                        'source': 'Tavily'
                     })
-                st.sidebar.success("Tavelly Search found results!")
+                st.sidebar.success("Tavily search found results!")
+                track_usage("Tavily")
+
         except Exception as e:
-            st.sidebar.error(f"Tavelly Search error: {str(e)}")
+            st.sidebar.error(f"Tavily Search error: {str(e)}")
 
     
     return results
