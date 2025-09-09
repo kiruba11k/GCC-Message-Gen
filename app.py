@@ -68,6 +68,7 @@ def process_tavily_results(results):
 
 # Search for content specifically by the person
 # Search for recent content specifically by the person
+# Search for recent content specifically by the person
 def search_content_by_person(person_name, company=None, designation=None):
     """Search for recent articles, blogs, news, and posts by the person using Tavily API"""
     # Create cache key
@@ -91,11 +92,12 @@ def search_content_by_person(person_name, company=None, designation=None):
             queries = [
                 f'"{person_name}" article OR blog OR post OR "written by" OR "authored by"',
                 f'"{person_name}" interview OR podcast OR "guest post" OR "thought leadership"',
-                f'"{person_name}" recent publications OR latest articles'
+                f'"{person_name}" recent publications OR latest articles OR recent posts'
             ]
             
             if company:
                 queries.append(f'"{person_name}" "{company}" recent articles OR blog posts')
+                queries.append(f'"{person_name}" site:{company.replace(" ", "").lower()}.com')
             if designation:
                 queries.append(f'"{person_name}" "{designation}" recent publications')
             
@@ -107,7 +109,7 @@ def search_content_by_person(person_name, company=None, designation=None):
                         query=query,
                         max_results=3,
                         search_depth="advanced",
-                        time_range="month",  # Focus on recent content from the past month
+                        days=30,  # Focus on content from the past 30 days :cite[2]:cite[8]
                         include_answer=False
                     )
                     
@@ -140,7 +142,7 @@ def search_content_by_person(person_name, company=None, designation=None):
                     query=general_query,
                     max_results=5,
                     search_depth="advanced",
-                    time_range="month"  # Still focus on recent content
+                    days=30  # Still focus on recent content :cite[2]:cite[8]
                 )
                 if response and "results" in response and response["results"]:
                     results = process_tavily_results(response["results"])
@@ -157,8 +159,7 @@ def search_content_by_person(person_name, company=None, designation=None):
         'timestamp': datetime.now()
     }
     
-    return results    
-
+    return results
 # Enforce message constraints
 def enforce_constraints(message):
     """Ensure message meets all constraints"""
@@ -182,23 +183,37 @@ def enforce_constraints(message):
     return message
 
 # Generate message with Groq
+if 'content_rotation_index' not in st.session_state:
+    st.session_state.content_rotation_index = 0
+
+# Modified message generation function to use different content
 def generate_message(person_name, content_data, company=None, designation=None):
-    """Generate personalized message using Groq API"""
+    """Generate personalized message using Groq API with content rotation"""
     if not groq_key:
         st.error("Please add your Groq API key in the sidebar")
         return None
     
+    # Rotate through available content for variety
+    if content_data:
+        rotation_index = st.session_state.content_rotation_index % len(content_data)
+        selected_content = content_data[rotation_index]
+        st.session_state.content_rotation_index += 1
+    else:
+        selected_content = None
+    
     try:
         client = Groq(api_key=groq_key)
         
-        # Prepare content context from search results
+        # Prepare content context - use the rotated content
         content_context = ""
-        for i, content in enumerate(content_data[:2]):  # Use top 2 results
-            content_context += f"{i+1}. {content['title']}: {content['snippet']}\n"
+        if selected_content:
+            content_context = f"1. {selected_content['title']}: {selected_content['snippet']}\n"
+        else:
+            content_context = "No specific content found for reference."
         
         # Construct precise prompt with constraints
         prompt = f"""
-        Create a personalized message for {person_name} referencing their recent content.
+        Create a personalized message for {person_name} referencing their specific content.
         MAXIMUM 250 CHARACTERS. Be concise and professional.
         
         STRICTLY AVOID these words: exploring, interested, learning, No easy feat, 
@@ -206,10 +221,10 @@ def generate_message(person_name, content_data, company=None, designation=None):
         No small feat, No easy task, Stood out.
         
         Follow this pattern from these examples:
-        - "Hi Niall, Saw your note on how fast digital marketing is evolving, completely agree, especially with how nuanced brand-building is getting across markets. I think a lot about where performance meets storytelling. Let's connect and exchange ideas."
-        - "Hi Shane, Saw your post on Pinterest as the 'farmers market of search', timely and sharp. As someone working on digital and content experiences for brands, I'd love to connect and exchange ideas on how discovery trends might reshape content planning."
+        - "Hi [Name], Saw your note on [specific topic], completely agree, especially with [specific insight]. I think a lot about [related area]. Let's connect and exchange ideas."
+        - "Hi [Name], Saw your post on [specific platform/topic], timely and sharp. As someone working on [your relevant work], I'd love to connect and exchange ideas on how [trend] might reshape [field]."
         
-        Recent content to reference:
+        Specific content to reference:
         {content_context}
         
         Generate a similar message for {person_name}:
@@ -218,7 +233,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # Call Groq API
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",  # Fast and cost-effective
+            model="llama-3.3-70b-versatile",
             temperature=0.7,
             max_tokens=150
         )
