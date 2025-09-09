@@ -35,7 +35,7 @@ with st.sidebar:
     groq_key=st.secrets["GROQ"]
     tavelly_key=st.secrets["TAVELLY"]
 
-    client = TavilyClient(tavily_key)
+    client = TavilyClient(tavelly_key)
     
     # newsapi_key = st.text_input("NewsAPI Key", type="password", 
     #                            help="Get from https://newsapi.org/register")
