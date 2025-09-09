@@ -67,10 +67,11 @@ def process_tavily_results(results):
     return processed
 
 # Search for content specifically by the person
+# Search for recent content specifically by the person
 def search_content_by_person(person_name, company=None, designation=None):
-    """Search for articles, blogs, news, and posts by the person using Tavily API"""
+    """Search for recent articles, blogs, news, and posts by the person using Tavily API"""
     # Create cache key
-    cache_key = f"{person_name}_{company}_{designation}_by_author"
+    cache_key = f"{person_name}_{company}_{designation}_author_content"
     
     # Check cache first
     if cache_key in st.session_state.search_cache:
@@ -81,21 +82,22 @@ def search_content_by_person(person_name, company=None, designation=None):
     
     results = []
     
-    # Use Tavily for search with author-specific queries
+    # Use Tavily for search with author-specific queries focused on recent content
     if tavily_key:
         try:
             client = TavilyClient(tavily_key)
             
-            # Create queries specifically to find content by the person
+            # Create queries specifically to find recent content by the person
             queries = [
                 f'"{person_name}" article OR blog OR post OR "written by" OR "authored by"',
-                f'"{person_name}" interview OR podcast OR "guest post" OR "thought leadership"'
+                f'"{person_name}" interview OR podcast OR "guest post" OR "thought leadership"',
+                f'"{person_name}" recent publications OR latest articles'
             ]
             
             if company:
-                queries.append(f'"{person_name}" "{company}" article OR blog OR post')
+                queries.append(f'"{person_name}" "{company}" recent articles OR blog posts')
             if designation:
-                queries.append(f'"{person_name}" "{designation}" article OR blog OR post')
+                queries.append(f'"{person_name}" "{designation}" recent publications')
             
             # Execute all queries and combine results
             all_results = []
@@ -103,8 +105,9 @@ def search_content_by_person(person_name, company=None, designation=None):
                 try:
                     response = client.search(
                         query=query,
-                        max_results=3,  # Fewer results per query to stay within limits
+                        max_results=3,
                         search_depth="advanced",
+                        time_range="month",  # Focus on recent content from the past month
                         include_answer=False
                     )
                     
@@ -115,25 +118,29 @@ def search_content_by_person(person_name, company=None, designation=None):
                     st.sidebar.warning(f"Query '{query}' failed: {str(e)}")
                     continue
             
-            # Remove duplicates by URL
+            # Remove duplicates by URL and ensure content is actually by the author
             seen_urls = set()
             unique_results = []
             for result in all_results:
-                if result.get('url') and result['url'] not in seen_urls:
+                if (result.get('url') and 
+                    result['url'] not in seen_urls and 
+                    (person_name.lower() in result.get('content', '').lower() or 
+                     person_name.lower() in result.get('title', '').lower())):
                     seen_urls.add(result['url'])
                     unique_results.append(result)
             
             if unique_results:
                 results = process_tavily_results(unique_results)
-                st.sidebar.success(f"Found {len(results)} content pieces by {person_name}")
+                st.sidebar.success(f"Found {len(results)} recent content pieces by {person_name}")
             else:
-                st.sidebar.info(f"No content directly by {person_name} found. Trying general search.")
-                # Fallback to general search if no author-specific content found
+                st.sidebar.info(f"No recent content directly by {person_name} found. Trying general search.")
+                # Fallback to general search with time restriction
                 general_query = f"{person_name} {company} {designation}".strip()
                 response = client.search(
                     query=general_query,
                     max_results=5,
-                    search_depth="advanced"
+                    search_depth="advanced",
+                    time_range="month"  # Still focus on recent content
                 )
                 if response and "results" in response and response["results"]:
                     results = process_tavily_results(response["results"])
@@ -150,7 +157,7 @@ def search_content_by_person(person_name, company=None, designation=None):
         'timestamp': datetime.now()
     }
     
-    return results
+    return results    
 
 # Enforce message constraints
 def enforce_constraints(message):
