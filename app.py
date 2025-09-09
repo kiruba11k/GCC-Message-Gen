@@ -282,7 +282,7 @@ def main():
                     
                     # Show source content
                     with st.expander("Source Content Found"):
-                        for i, content in enumerate(content_data[:2]):  # Show top 2 sources
+                        for i, content in enumerate(content_data[:]):  # Show top 2 sources
                             st.write(f"**Source {i+1}:** {content['title']}")
                             st.write(f"**Summary:** {content['snippet']}")
                             if content['url']:
