@@ -240,6 +240,9 @@ def enforce_constraints(message, company=None, designation=None):
     # Clean up extra spaces
     message = re.sub(r'\s+', ' ', message).strip()
     
+    # Remove any signature at the end (Regards, Kingshuk or similar)
+    message = re.sub(r'\n*(Best|Regards|Thanks|Sincerely),?\s*\n*Kingshuk.*$', '', message, flags=re.IGNORECASE)
+    
     # Ensure the message has a proper structure
     connection_phrases = ["Would love to connect", "Would be glad to connect", "I'd love to connect", "Let's connect"]
     if not any(phrase in message for phrase in connection_phrases):
@@ -253,19 +256,35 @@ def enforce_constraints(message, company=None, designation=None):
         else:
             message = message + "\n\nWould love to connect."
     
-    # Ensure proper signature
-   
-    
     # Enforce character limits (200-270)
+    if len(message) > 270:
+        # Try to preserve the connection phrase
+        if "Would love to connect" in message:
+            main_content = message.split("Would love to connect")[0]
+            if len(main_content) > 240:
+                # Find the last complete sentence before 240 characters
+                last_period = main_content[:240].rfind('.')
+                if last_period > 0:
+                    main_content = main_content[:last_period+1]
+                else:
+                    main_content = main_content[:237] + "..."
+            message = main_content + "Would love to connect."
+        else:
+            # Find the last complete sentence before 270 characters
+            last_period = message[:270].rfind('.')
+            if last_period > 0:
+                message = message[:last_period+1]
+            else:
+                message = message[:267] + "..."
     
     # Check if message is too short - enhance it instead of rejecting
     if len(message) < 200:
         # Enhance short messages with additional content
         enhancement_phrases = [
             "I found your perspective particularly insightful.",
-            "This resonates with my own experience in the field.",
+            "This offers a fresh take on the challenges we're seeing in the industry.",
             "Your approach to this topic is quite innovative.",
-            "This gives me a fresh perspective on the matter."
+            "This gives me a new perspective on the matter."
         ]
         
         import random
@@ -280,7 +299,6 @@ def enforce_constraints(message, company=None, designation=None):
     
     return message
 
-# Generate message with Groq using dynamic patterns
 # Generate message with Groq using dynamic patterns
 def generate_message(person_name, content_data, company=None, designation=None):
     """Generate personalized message using Groq API with content rotation"""
@@ -306,7 +324,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         else:
             content_context = "No specific content found for reference."
         
-        # More specific prompt with clearer examples
+        # More specific prompt with clearer examples (no signature in examples)
         prompt = f"""
         Create a professional first-level outreach message for {person_name} based on their specific content.
         The message must be between 200-270 characters. Be concise, professional, and reference the specific content.
@@ -317,6 +335,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         
         IMPORTANT: 
         - Do not mention the person's company name or designation
+        - Do NOT include any signature like "Regards, Kingshuk" at the end
         - Make each message unique and creative
         - Avoid using the same phrases repeatedly
         - Ensure the message is complete and makes sense
@@ -326,33 +345,23 @@ def generate_message(person_name, content_data, company=None, designation=None):
 
         PATTERN 1 (Specific insight):
         "Hi [Name],
-        I appreciated your perspective on [topic]—specifically your point about [specific insight]. [Add creative observation about why this matters]. Would love to connect.
-        Regards,
-        Kingshuk"
+        I appreciated your perspective on [topic]—specifically your point about [specific insight]. [Add creative observation about why this matters]. Would love to connect."
 
         PATTERN 2 (Industry relevance):
         "Hi [Name],
-        Your take on [topic] caught my attention, especially how you framed [specific aspect]. [Connect to broader industry context or challenge]. I'd be glad to connect.
-        Best,
-        Kingshuk"
+        Your take on [topic] caught my attention, especially how you framed [specific aspect]. [Connect to broader industry context or challenge]. I'd be glad to connect."
 
         PATTERN 3 (Practical application):
         "Hi [Name],
-        Found your perspective on [topic] quite practical—your approach to [specific method/technique] offers a fresh take on [challenge/opportunity]. Let's connect.
-        Regards,
-        Kingshuk"
+        Found your perspective on [topic] quite practical—your approach to [specific method/technique] offers a fresh take on [challenge/opportunity]. Let's connect."
 
         PATTERN 4 (Timely perspective):
         "Hi [Name],
-        Your thoughts on [topic] are particularly relevant now as [industry/field] navigates [current challenge]. The way you highlighted [specific insight] stood out. Would love to connect.
-        Best,
-        Kingshuk"
+        Your thoughts on [topic] are particularly relevant now as [industry/field] navigates [current challenge]. The way you highlighted [specific insight] stood out. Would love to connect."
 
         PATTERN 5 (Nuanced understanding):
         "Hi [Name],
-        The nuance in your perspective on [topic] is refreshing—especially how you differentiate between [concept A] and [concept B]. [Add brief personal insight]. Let's connect.
-        Regards,
-        Kingshuk"
+        The nuance in your perspective on [topic] is refreshing—especially how you differentiate between [concept A] and [concept B]. [Add brief personal insight]. Let's connect."
 
         Content to reference:
         {content_context}
@@ -391,6 +400,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
     except Exception as e:
         st.error(f"Error generating message: {str(e)}")
         return None
+
 # Navigation functions
 def show_previous_message():
     """Show the previous generated message"""
