@@ -259,42 +259,49 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # Prepare content context - use the rotated content
         content_context = ""
         if selected_content:
-            content_context = f"1. {selected_content['title']}: {selected_content['snippet']}\n"
+            content_context = f"Title: {selected_content['title']}\nContent: {selected_content['snippet']}\n"
         else:
             content_context = "No specific content found for reference."
         
-        # Construct precise prompt with constraints and new examples
+        # Construct precise prompt with constraints and professional examples
         prompt = f"""
-        Create a personalized message for {person_name} by analyzing and referencing their specific content.
-        MAXIMUM 250 CHARACTERS. Be concise and professional.
+        Create a professional first-level outreach message for {person_name} based on their specific content.
+        MAXIMUM 250 CHARACTERS. Be concise, professional, and reference the specific content.
         
-        STRICTLY AVOID these words: exploring, interested, learning, No easy feat, 
+        STRICTLY AVOID these words and phrases: exploring, interested, learning, No easy feat, 
         Impressive, Noteworthy, Remarkable, Fascinating, Admiring, Inspiring, 
         No small feat, No easy task, Stood out.
         
-        Follow this pattern from these examples:
-        - "Hi Raja,
-          I liked your post on nurturing interns at Bechtel—especially your point about learning as much from them as they do from leaders. It's rare to see that humility in leadership. Would love to connect.
-          Regards,
-          Kingshuk"
-        - "Hi Sandeep,
-          From integrity to innovation, your posts strike a rare balance of culture and execution. As someone exploring GCC growth stories, I'd love to connect and learn from your journey.
-          Regards,
-          Kingshuk"
-        - "Hi Anurag,
-          Your recent post on fake door testing really stood out—practical, clear, and so relevant. Always refreshing to see product leaders share real-world lessons. Would love to connect.
-          Regards,
-          Kingshuk"
-        - "Hi Mohammad,
-          Your recent post on AI in pharma was insightful—the way you highlighted its role in accelerating drug discovery and transforming commercial operations was very engaging. I truly admire how you connect innovation with real-world patient outcomes.
-          Would be glad to connect.
-          Regards,
-          Kingshuk"
+        DO NOT:
+        - Make comments about the content
+        - Use opinion phrases like "I think" or "I believe"
+        - Use flattery or excessive praise
+        - Mention anything about comments or commenting
         
-        Specific content to reference:
+        DO:
+        - Reference specific content directly
+        - Keep it professional and concise
+        - Focus on the content's value or insights
+        - End with a clear call to connect
+        
+        Follow these professional patterns:
+        
+        Example 1 (based on a post):
+        "Hi [Name], I saw your post about [topic] - your perspective on [specific point] aligns with my experience in [relevant field]. Would be great to connect and exchange insights."
+        
+        Example 2 (based on an article):
+        "Hi [Name], your article on [topic] offered valuable insights, particularly your take on [specific point]. As someone focused on [relevant area], I'd appreciate connecting."
+        
+        Example 3 (based on company news):
+        "Hi [Name], I noticed [company]'s recent initiative in [area] - your approach to [specific aspect] resonates with my work in [relevant field]. Would value the opportunity to connect."
+        
+        Example 4 (based on professional achievement):
+        "Hi [Name], congratulations on [achievement] - the strategic approach to [specific aspect] demonstrates notable expertise in [relevant area]. Would be excellent to connect."
+        
+        Content to reference:
         {content_context}
         
-        Generate a similar message for {person_name}:
+        Generate a professional outreach message for {person_name}:
         """
         
         # Call Groq API
@@ -373,7 +380,7 @@ def main():
                     
                     # Show source content
                     with st.expander("Source Content Found"):
-                        for i, content in enumerate(content_data[:]):  # Show top 2 sources
+                        for i, content in enumerate(content_data[:]):  
                             st.write(f"**Source {i+1}:** {content['title']}")
                             st.write(f"**Summary:** {content['snippet']}")
                             if content['url']:
@@ -401,7 +408,7 @@ def main():
                 content_data = st.session_state.content_data
             
             if content_data:
-                with st.spinner("Generating message..."):
+                with st.spinner("Generating professional message..."):
                     # Generate message
                     message = generate_message(person_name, content_data, company, designation)
                 
