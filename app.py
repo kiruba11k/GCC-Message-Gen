@@ -20,6 +20,15 @@ if 'content_data' not in st.session_state:
 if 'searched' not in st.session_state:
     st.session_state.searched = False
 
+if 'content_rotation_index' not in st.session_state:
+    st.session_state.content_rotation_index = 0
+
+if 'generated_messages' not in st.session_state:
+    st.session_state.generated_messages = []
+
+if 'current_message_index' not in st.session_state:
+    st.session_state.current_message_index = -1
+
 # Set page config
 st.set_page_config(
     page_title="GCC Message Generator",
@@ -230,10 +239,6 @@ def enforce_constraints(message):
     return message
 
 # Generate message with Groq
-if 'content_rotation_index' not in st.session_state:
-    st.session_state.content_rotation_index = 0
-
-# Modified message generation function to use different content
 def generate_message(person_name, content_data, company=None, designation=None):
     """Generate personalized message using Groq API with content rotation"""
     if not groq_key:
@@ -304,11 +309,35 @@ def generate_message(person_name, content_data, company=None, designation=None):
         
         # Ensure character limit and remove prohibited words
         message = enforce_constraints(message)
+        
+        # Store the generated message with its source info
+        if selected_content:
+            message_data = {
+                "message": message,
+                "source_title": selected_content['title'],
+                "source_snippet": selected_content['snippet'],
+                "source_url": selected_content.get('url', ''),
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            st.session_state.generated_messages.append(message_data)
+            st.session_state.current_message_index = len(st.session_state.generated_messages) - 1
+        
         return message
         
     except Exception as e:
         st.error(f"Error generating message: {str(e)}")
         return None
+
+# Navigation functions
+def show_previous_message():
+    """Show the previous generated message"""
+    if st.session_state.current_message_index > 0:
+        st.session_state.current_message_index -= 1
+
+def show_next_message():
+    """Show the next generated message"""
+    if st.session_state.current_message_index < len(st.session_state.generated_messages) - 1:
+        st.session_state.current_message_index += 1
 
 # Main app interface
 def main():
@@ -379,8 +408,35 @@ def main():
                 if message:
                     # Display results
                     st.success("Message generated successfully!")
-                    st.text_area("Generated Message", message, height=150, key="message_output")
-                    st.caption(f"Character count: {len(message)}/250")
+                    
+                    # Navigation buttons
+                    if len(st.session_state.generated_messages) > 1:
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        with col1:
+                            if st.button("← Previous", on_click=show_previous_message, 
+                                        disabled=st.session_state.current_message_index <= 0):
+                                pass
+                        with col2:
+                            current_idx = st.session_state.current_message_index + 1
+                            total_msgs = len(st.session_state.generated_messages)
+                            st.caption(f"Message {current_idx} of {total_msgs}")
+                        with col3:
+                            if st.button("Next →", on_click=show_next_message,
+                                        disabled=st.session_state.current_message_index >= len(st.session_state.generated_messages) - 1):
+                                pass
+                    
+                    # Display current message
+                    current_msg = st.session_state.generated_messages[st.session_state.current_message_index]
+                    st.text_area("Generated Message", current_msg["message"], height=150, key="message_output")
+                    st.caption(f"Character count: {len(current_msg['message'])}/250")
+                    
+                    # Show source info for this message
+                    with st.expander("View Source Info"):
+                        st.write(f"**Source Title:** {current_msg['source_title']}")
+                        st.write(f"**Source Content:** {current_msg['source_snippet']}")
+                        if current_msg.get('source_url'):
+                            st.write(f"**Source URL:** {current_msg['source_url']}")
+                        st.write(f"**Generated at:** {current_msg['timestamp']}")
                     
                     # Copy button
                     if st.button("Copy Message to Clipboard"):
