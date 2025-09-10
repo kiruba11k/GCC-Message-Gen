@@ -374,7 +374,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.3-70b-versatile",
-            temperature=0.8,  # Higher temperature for more creativity
+            temperature=0.7,  # Higher temperature for more creativity
             max_tokens=150  # Increased tokens for more detailed messages
         )
         
