@@ -267,7 +267,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # Construct precise prompt with dynamic patterns
         prompt = f"""
         Create a professional first-level outreach message for {person_name} based on their specific content.
-        MINIMUM 200 CHARACTERS.MAXIMUM 250 CHARACTERS. Be concise, professional, and reference the specific content.
+        MINIMUM 200 CHARACTERS.MAXIMUM 300 CHARACTERS. Be concise, professional, and reference the specific content.
         
         STRICTLY AVOID these words and phrases: exploring, interested, learning, No easy feat, 
         Impressive, Noteworthy, Remarkable, Fascinating, Admiring, Inspiring, 
@@ -326,7 +326,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.3-70b-versatile",
             temperature=0.8,  # Higher temperature for more creativity
-            max_tokens=150
+            max_tokens=170
         )
         
         message = chat_completion.choices[0].message.content.strip()
