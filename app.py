@@ -408,39 +408,6 @@ def main():
                 if message:
                     # Display results
                     st.success("Message generated successfully!")
-                    
-                    # Navigation buttons
-                    if len(st.session_state.generated_messages) > 1:
-                        col1, col2, col3 = st.columns([1, 2, 1])
-                        with col1:
-                            if st.button("← Previous", on_click=show_previous_message, 
-                                        disabled=st.session_state.current_message_index <= 0):
-                                pass
-                        with col2:
-                            current_idx = st.session_state.current_message_index + 1
-                            total_msgs = len(st.session_state.generated_messages)
-                            st.caption(f"Message {current_idx} of {total_msgs}")
-                        with col3:
-                            if st.button("Next →", on_click=show_next_message,
-                                        disabled=st.session_state.current_message_index >= len(st.session_state.generated_messages) - 1):
-                                pass
-                    
-                    # Display current message
-                    current_msg = st.session_state.generated_messages[st.session_state.current_message_index]
-                    st.text_area("Generated Message", current_msg["message"], height=150, key="message_output")
-                    st.caption(f"Character count: {len(current_msg['message'])}/250")
-                    
-                    # Show source info for this message
-                    with st.expander("View Source Info"):
-                        st.write(f"**Source Title:** {current_msg['source_title']}")
-                        st.write(f"**Source Content:** {current_msg['source_snippet']}")
-                        if current_msg.get('source_url'):
-                            st.write(f"**Source URL:** {current_msg['source_url']}")
-                        st.write(f"**Generated at:** {current_msg['timestamp']}")
-                    
-                    # Copy button
-                    if st.button("Copy Message to Clipboard"):
-                        st.write("Message copied to clipboard!")
                 else:
                     st.error("Failed to generate message. Please check your Groq API key.")
             else:
@@ -465,10 +432,49 @@ def main():
                             
                             if message:
                                 st.success("Message generated successfully!")
-                                st.text_area("Generated Message", message, height=150, key="manual_message_output")
-                                st.caption(f"Character count: {len(message)}/250")
+                            else:
+                                st.error("Failed to generate message. Please check your Groq API key.")
                         else:
                             st.error("Please provide both a title and content summary")
+    
+    # Display generated messages with navigation if available
+    if st.session_state.generated_messages:
+        st.divider()
+        st.subheader("Generated Messages")
+        
+        # Navigation buttons
+        if len(st.session_state.generated_messages) > 1:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col1:
+                if st.button("← Previous", on_click=show_previous_message, 
+                            disabled=st.session_state.current_message_index <= 0):
+                    pass
+            with col2:
+                current_idx = st.session_state.current_message_index + 1
+                total_msgs = len(st.session_state.generated_messages)
+                st.caption(f"Message {current_idx} of {total_msgs}")
+            with col3:
+                if st.button("Next →", on_click=show_next_message,
+                            disabled=st.session_state.current_message_index >= len(st.session_state.generated_messages) - 1):
+                    pass
+        
+        # Display current message
+        if 0 <= st.session_state.current_message_index < len(st.session_state.generated_messages):
+            current_msg = st.session_state.generated_messages[st.session_state.current_message_index]
+            st.text_area("Generated Message", current_msg["message"], height=150, key="message_output")
+            st.caption(f"Character count: {len(current_msg['message'])}/250")
+            
+            # Show source info for this message
+            with st.expander("View Source Info"):
+                st.write(f"**Source Title:** {current_msg['source_title']}")
+                st.write(f"**Source Content:** {current_msg['source_snippet']}")
+                if current_msg.get('source_url'):
+                    st.write(f"**Source URL:** {current_msg['source_url']}")
+                st.write(f"**Generated at:** {current_msg['timestamp']}")
+            
+            # Copy button
+            if st.button("Copy Message to Clipboard", key="copy_button"):
+                st.write("Message copied to clipboard!")
     
     # Display API usage in sidebar
     with st.sidebar:
