@@ -257,25 +257,25 @@ def enforce_constraints(message, company=None, designation=None):
             message = message + "\n\nWould love to connect."
     
     # Enforce character limits (200-270)
-    if len(message) > 270:
-        # Try to preserve the connection phrase
-        if "Would love to connect" in message:
-            main_content = message.split("Would love to connect")[0]
-            if len(main_content) > 240:
-                # Find the last complete sentence before 240 characters
-                last_period = main_content[:240].rfind('.')
-                if last_period > 0:
-                    main_content = main_content[:last_period+1]
-                else:
-                    main_content = main_content[:237] + "..."
-            message = main_content + "Would love to connect."
-        else:
-            # Find the last complete sentence before 270 characters
-            last_period = message[:270].rfind('.')
-            if last_period > 0:
-                message = message[:last_period+1]
-            else:
-                message = message[:267] + "..."
+    # if len(message) > 270:
+    #     # Try to preserve the connection phrase
+    #     if "Would love to connect" in message:
+    #         main_content = message.split("Would love to connect")[0]
+    #         if len(main_content) > 240:
+    #             # Find the last complete sentence before 240 characters
+    #             last_period = main_content[:240].rfind('.')
+    #             if last_period > 0:
+    #                 main_content = main_content[:last_period+1]
+    #             else:
+    #                 main_content = main_content[:237] + "..."
+    #         message = main_content + "Would love to connect."
+    #     else:
+    #         # Find the last complete sentence before 270 characters
+    #         last_period = message[:270].rfind('.')
+    #         if last_period > 0:
+    #             message = message[:last_period+1]
+    #         else:
+    #             message = message[:267] + "..."
     
     # Check if message is too short - enhance it instead of rejecting
     if len(message) < 200:
@@ -327,7 +327,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # More specific prompt with clearer examples (no signature in examples)
         prompt = f"""
         Create a professional first-level outreach message for {person_name} based on their specific content.
-        The message must be between 200-270 characters. Be concise, professional, and reference the specific content.
+        The message must be between 200-250 characters. Be concise, professional, and reference the specific content.
         
         STRICTLY AVOID these words and phrases: exploring, interested, learning, No easy feat, 
         Impressive, Noteworthy, Remarkable, Fascinating, Admiring, Inspiring, 
@@ -345,7 +345,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
 
         PATTERN 1 (Specific insight):
         "Hi [Name],
-        I appreciated your perspective on [topic]—specifically your point about [specific insight]. [Add creative observation about why this matters]. Would love to connect."
+        I appreciate your perspective on [topic]—specifically your point about [specific insight]. [Add creative observation about why this matters]. Would love to connect."
 
         PATTERN 2 (Industry relevance):
         "Hi [Name],
@@ -375,7 +375,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.3-70b-versatile",
             temperature=0.8,  # Higher temperature for more creativity
-            max_tokens=200  # Increased tokens for more detailed messages
+            max_tokens=150  # Increased tokens for more detailed messages
         )
         
         message = chat_completion.choices[0].message.content.strip()
@@ -433,7 +433,7 @@ def main():
         if not person_name:
             st.error("Please provide at least a person name")
         else:
-            with st.spinner("Searching for content by this person..."):
+            with st.spinner("Searching for content about this person..."):
                 # Search for content using Tavily with author-specific queries
                 content_data = search_content_by_person(person_name, company, designation)
                 st.session_state.content_data = content_data
@@ -481,7 +481,7 @@ def main():
                 if message:
                     # Display results
                     st.success("Message generated successfully!")
-                    st.caption(f"Character count: {len(message)}/270")
+                    st.caption(f"Character count: {len(message)}/250")
                 else:
                     st.error("Failed to generate a valid message. Please try again.")
             else:
