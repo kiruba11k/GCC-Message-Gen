@@ -279,26 +279,26 @@ def enforce_constraints(message, company=None, designation=None):
                 message = message[:267] + "..."
     
     # Check if message is too short - enhance it instead of rejecting
-    if len(message) < 200:
-        # Enhance short messages with additional content
-        enhancement_phrases = [
-            "I found your perspective particularly insightful.",
-            "This offers a fresh take on the challenges we're seeing in the industry.",
-            "Your approach to this topic is quite innovative.",
-            "This gives me a new perspective on the matter."
-        ]
+    # if len(message) < 200:
+    #     # Enhance short messages with additional content
+    #     enhancement_phrases = [
+    #         "I found your perspective particularly insightful.",
+    #         "This offers a fresh take on the challenges we're seeing in the industry.",
+    #         "Your approach to this topic is quite innovative.",
+    #         "This gives me a new perspective on the matter."
+    #     ]
         
-        import random
-        enhancement = random.choice(enhancement_phrases)
+    #     import random
+    #     enhancement = random.choice(enhancement_phrases)
         
-        # Insert enhancement before the connection phrase
-        if "Would love to connect" in message:
-            parts = message.split("Would love to connect")
-            message = parts[0] + enhancement + " Would love to connect" + parts[1] if len(parts) > 1 else parts[0] + enhancement + " Would love to connect"
-        else:
-            message = message + " " + enhancement
+    #     # Insert enhancement before the connection phrase
+    #     if "Would love to connect" in message:
+    #         parts = message.split("Would love to connect")
+    #         message = parts[0] + enhancement + " Would love to connect" + parts[1] if len(parts) > 1 else parts[0] + enhancement + " Would love to connect"
+    #     else:
+    #         message = message + " " + enhancement
     
-    return message
+    # return message
 
 # Generate message with Groq using dynamic patterns
 def generate_message(person_name, content_data, company=None, designation=None):
