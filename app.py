@@ -66,8 +66,6 @@ def process_tavily_results(results):
         })
     return processed
 
-# Search for content specifically by the person
-# Search for recent content specifically by the person
 # Search for recent content specifically by the person
 def search_content_by_person(person_name, company=None, designation=None):
     """Search for recent articles, blogs, news, and posts by the person using Tavily API"""
@@ -88,28 +86,76 @@ def search_content_by_person(person_name, company=None, designation=None):
         try:
             client = TavilyClient(tavily_key)
             
-            # Create queries specifically to find recent content by the person
-            queries = [
+            # First try: Search with person + company (if company is provided)
+            if company:
+                company_queries = [
+                    f'"{person_name}" "{company}" article OR blog OR post OR "written by" OR "authored by"',
+                    f'"{person_name}" "{company}" interview OR podcast OR "guest post" OR "thought leadership"',
+                    f'"{person_name}" "{company}" recent publications OR latest articles OR recent posts',
+                    f'"{person_name}" site:{company.replace(" ", "").lower()}.com'
+                ]
+                
+                # Execute company-specific queries first
+                all_results = []
+                for query in company_queries:
+                    try:
+                        response = client.search(
+                            query=query,
+                            max_results=3,
+                            search_depth="advanced",
+                            days=30,
+                            include_answer=False
+                        )
+                        
+                        if response and "results" in response and response["results"]:
+                            all_results.extend(response["results"])
+                            track_usage("Tavily")
+                    except Exception as e:
+                        st.sidebar.warning(f"Query '{query}' failed: {str(e)}")
+                        continue
+                
+                # Remove duplicates by URL and ensure content is actually by the author
+                seen_urls = set()
+                unique_results = []
+                for result in all_results:
+                    if (result.get('url') and 
+                        result['url'] not in seen_urls and 
+                        (person_name.lower() in result.get('content', '').lower() or 
+                         person_name.lower() in result.get('title', '').lower())):
+                        seen_urls.add(result['url'])
+                        unique_results.append(result)
+                
+                if unique_results:
+                    results = process_tavily_results(unique_results)
+                    st.sidebar.success(f"Found {len(results)} content pieces by {person_name} at {company}")
+                    
+                    # Cache the results
+                    st.session_state.search_cache[cache_key] = {
+                        'results': results,
+                        'timestamp': datetime.now()
+                    }
+                    
+                    return results
+            
+            # Second try: If no results with company or no company provided, search by person only
+            person_queries = [
                 f'"{person_name}" article OR blog OR post OR "written by" OR "authored by"',
                 f'"{person_name}" interview OR podcast OR "guest post" OR "thought leadership"',
                 f'"{person_name}" recent publications OR latest articles OR recent posts'
             ]
             
-            if company:
-                queries.append(f'"{person_name}" "{company}" recent articles OR blog posts')
-                queries.append(f'"{person_name}" site:{company.replace(" ", "").lower()}.com')
             if designation:
-                queries.append(f'"{person_name}" "{designation}" recent publications')
+                person_queries.append(f'"{person_name}" "{designation}" recent publications')
             
-            # Execute all queries and combine results
+            # Execute person-only queries
             all_results = []
-            for query in queries:
+            for query in person_queries:
                 try:
                     response = client.search(
                         query=query,
                         max_results=3,
                         search_depth="advanced",
-                        days=30,  # Focus on content from the past 30 days :cite[2]:cite[8]
+                        days=30,
                         include_answer=False
                     )
                     
@@ -133,7 +179,7 @@ def search_content_by_person(person_name, company=None, designation=None):
             
             if unique_results:
                 results = process_tavily_results(unique_results)
-                st.sidebar.success(f"Found {len(results)} recent content pieces by {person_name}")
+                st.sidebar.success(f"Found {len(results)} content pieces by {person_name}")
             else:
                 st.sidebar.info(f"No recent content directly by {person_name} found. Trying general search.")
                 # Fallback to general search with time restriction
@@ -142,7 +188,7 @@ def search_content_by_person(person_name, company=None, designation=None):
                     query=general_query,
                     max_results=5,
                     search_depth="advanced",
-                    days=30  # Still focus on recent content :cite[2]:cite[8]
+                    days=30
                 )
                 if response and "results" in response and response["results"]:
                     results = process_tavily_results(response["results"])
@@ -160,6 +206,7 @@ def search_content_by_person(person_name, company=None, designation=None):
     }
     
     return results
+
 # Enforce message constraints
 def enforce_constraints(message):
     """Ensure message meets all constraints"""
@@ -211,7 +258,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         else:
             content_context = "No specific content found for reference."
         
-        # Construct precise prompt with constraints
+        # Construct precise prompt with constraints and new examples
         prompt = f"""
         Create a personalized message for {person_name} by analyzing and referencing their specific content.
         MAXIMUM 250 CHARACTERS. Be concise and professional.
@@ -221,27 +268,23 @@ def generate_message(person_name, content_data, company=None, designation=None):
         No small feat, No easy task, Stood out.
         
         Follow this pattern from these examples:
-        - "Hi Ajith,
-          I saw your post about speaking on "Unleashing the Future of Supply Chain through the AI Revolution" at JW Marriott, Mumbaiâ€”exciting to see AI transforming supply chains. As someone passionate about leveraging tech to optimize global supply chains, I'd love to connect.
-          Best,
-          Kingshuk Hazra"
-        - "Hi Rupesh,
-            Saw your recent repost of Simon Sinek's opinion on leadership, a powerful video on how empathy is important to be an effective leader in today's work environments.
-            As a fellow InfoSec leader, I'd love to connect with you.
-            Regards,
-            Kingshuk Hazra"
-        - "Hi Manish, 
-Saw your video @ETCIO highlighting balancing security measures with operational efficiency & agility. I couldn't agree more on how the CyberSec strategy must be aligned with the operational deployments in any organization.
-As a fellow InfoSec enthusiast, I'd love to connect.
-Regards,
-Kingshuk Hazra"
-         - " Hi Ravi,
-Your recent content around OT-IT convergence and the crisp video on digital fundamentals really stood out. I'm equally interested in how IT leaders like you drive real-world transformation while keeping tech simple and human. Let's connect and share ideas!
-Best, Kingshuk Hazra"
-        - "Hi Niall,
-Saw your note on how fast digital marketing is evolving, completely agree, especially with how nuanced brand-building is getting across markets. I think a lot about where performance meets storytelling. Let's connect and exchange ideas.
-Best,
-Kingshuk Hazra"
+        - "Hi Raja,
+          I liked your post on nurturing interns at Bechtel—especially your point about learning as much from them as they do from leaders. It's rare to see that humility in leadership. Would love to connect.
+          Regards,
+          Kingshuk"
+        - "Hi Sandeep,
+          From integrity to innovation, your posts strike a rare balance of culture and execution. As someone exploring GCC growth stories, I'd love to connect and learn from your journey.
+          Regards,
+          Kingshuk"
+        - "Hi Anurag,
+          Your recent post on fake door testing really stood out—practical, clear, and so relevant. Always refreshing to see product leaders share real-world lessons. Would love to connect.
+          Regards,
+          Kingshuk"
+        - "Hi Mohammad,
+          Your recent post on AI in pharma was insightful—the way you highlighted its role in accelerating drug discovery and transforming commercial operations was very engaging. I truly admire how you connect innovation with real-world patient outcomes.
+          Would be glad to connect.
+          Regards,
+          Kingshuk"
         
         Specific content to reference:
         {content_context}
