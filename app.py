@@ -230,75 +230,25 @@ def enforce_constraints(message, company=None, designation=None):
     for word in prohibited_words:
         message = re.sub(r'\b' + word + r'\b', '', message, flags=re.IGNORECASE)
     
-    # Remove company name if provided
     if company:
         message = re.sub(r'\b' + re.escape(company) + r'\b', '', message, flags=re.IGNORECASE)
     
-    # Remove designation if provided
     if designation:
         message = re.sub(r'\b' + re.escape(designation) + r'\b', '', message, flags=re.IGNORECASE)
     
-    # Clean up extra spaces
     message = re.sub(r'\s+', ' ', message).strip()
-    
-    # Remove any signature at the end (Regards, Kingshuk or similar)
     message = re.sub(r'\n*(Best|Regards|Thanks|Sincerely),?\s*\n*Kingshuk.*$', '', message, flags=re.IGNORECASE)
-    
-    # Ensure the message has a proper structure
-    connection_phrases = ["Would love to connect", "Would be glad to connect", "I'd love to connect", "Let's connect"]
-    if not any(phrase in message for phrase in connection_phrases):
-        if "connect" in message.lower():
-            # Find where "connect" appears and format from there
-            connect_index = message.lower().find("connect")
-            if connect_index > 0:
-                message = message[:connect_index] + "Would love to connect."
-            else:
-                message = message + "\n\nWould love to connect."
-        else:
-            message = message + "\n\nWould love to connect."
-    
-    # Enforce character limits (200-270)
-    if len(message) > 270:
-        # Try to preserve the connection phrase
-        if "Would love to connect" in message:
-            main_content = message.split("Would love to connect")[0]
-            if len(main_content) > 240:
-                # Find the last complete sentence before 240 characters
-                last_period = main_content[:240].rfind('.')
-                if last_period > 0:
-                    main_content = main_content[:last_period+1]
-                else:
-                    main_content = main_content[:237] + "..."
-            message = main_content + "Would love to connect."
-        else:
-            # Find the last complete sentence before 270 characters
-            last_period = message[:270].rfind('.')
-            if last_period > 0:
-                message = message[:last_period+1]
-            else:
-                message = message[:267] + "..."
-    
-    # Check if message is too short - enhance it instead of rejecting
 
-    if len(message) < 200:
-        # Enhance short messages with additional content
-        enhancement_phrases = [
-            "I found your perspective particularly insightful.",
-            "This offers a fresh take on the challenges we're seeing in the industry.",
-            "Your approach to this topic is quite innovative.",
-            "This gives me a new perspective on the matter."
-        ]
-        
-        import random
-        enhancement = random.choice(enhancement_phrases)
-        
-        # Insert enhancement before the connection phrase
-        if "Would love to connect" in message:
-            parts = message.split("Would love to connect")
-            message = parts[0] + enhancement + " Would love to connect" + parts[1] if len(parts) > 1 else parts[0] + enhancement + " Would love to connect"
-        else:
-            message = message + " " + enhancement
-    
+    # Truncate message at connection phrase
+    connection_phrase = "Let's connect and exchange ideas."
+    if connection_phrase in message:
+        index = message.find(connection_phrase) + len(connection_phrase)
+        message = message[:index]
+
+    # Enforce max length if needed
+    if len(message) > 270:
+        message = message[:270].rsplit(' ', 1)[0] + "..."
+
     return message
 
 # Generate message with Groq using dynamic patterns
