@@ -216,29 +216,95 @@ def search_content_by_person(person_name, company=None, designation=None):
     
     return results
 
-# Enforce message constraints
-def enforce_constraints(message):
-    """Ensure message meets all constraints"""
+# Enforce message constraints with new character limits
+def enforce_constraints(message, company=None, designation=None):
+    """Ensure message meets all constraints including character limits"""
     # Remove prohibited words
     prohibited_words = [
         "exploring", "interested", "learning", "No easy feat", "Impressive",
         "Noteworthy", "Remarkable", "Fascinating", "Admiring", "Inspiring",
-        "No small feat", "No easy task", "Stood out"
+        "No small feat", "No easy task", "Stood out", "rare to see", "it's rare to see"
     ]
     
     for word in prohibited_words:
         message = re.sub(r'\b' + word + r'\b', '', message, flags=re.IGNORECASE)
     
+    # Remove company name if provided
+    if company:
+        message = re.sub(r'\b' + re.escape(company) + r'\b', '', message, flags=re.IGNORECASE)
+    
+    # Remove designation if provided
+    if designation:
+        message = re.sub(r'\b' + re.escape(designation) + r'\b', '', message, flags=re.IGNORECASE)
+    
     # Clean up extra spaces
     message = re.sub(r'\s+', ' ', message).strip()
     
-    # Trim to 250 characters
-    if len(message) > 250:
-        message = message[:247] + "..."
+    # Ensure the message has a proper structure
+    if not any(phrase in message for phrase in ["Would love to connect", "Would be glad to connect", "I'd love to connect", "Let's connect"]):
+        if "connect" in message.lower():
+            # Find where "connect" appears and format from there
+            connect_index = message.lower().find("connect")
+            if connect_index > 0:
+                message = message[:connect_index] + "Would love to connect."
+            else:
+                message = message + "\n\nWould love to connect."
+        else:
+            message = message + "\n\nWould love to connect."
+    
+    # Ensure proper signature
+    if not message.endswith("Kingshuk"):
+        if "Kingshuk" in message:
+            # Extract everything up to and including Kingshuk
+            parts = message.split("Kingshuk")
+            if len(parts) > 1:
+                message = parts[0] + "Kingshuk"
+            else:
+                message = message + "\n\nRegards,\nKingshuk"
+        else:
+            message = message + "\n\nRegards,\nKingshuk"
+    
+    # Enforce character limits (200-270)
+    if len(message) > 270:
+        # Try to preserve the signature and connection phrase
+        if "\nRegards,\nKingshuk" in message:
+            main_content = message.split("\nRegards,\nKingshuk")[0]
+            if len(main_content) > 240:
+                # Find the last complete sentence before 240 characters
+                last_period = main_content[:240].rfind('.')
+                if last_period > 0:
+                    main_content = main_content[:last_period+1]
+                else:
+                    main_content = main_content[:237] + "..."
+            message = main_content + "\nRegards,\nKingshuk"
+        elif "Would love to connect" in message:
+            main_content = message.split("Would love to connect")[0]
+            if len(main_content) > 240:
+                last_period = main_content[:240].rfind('.')
+                if last_period > 0:
+                    main_content = main_content[:last_period+1]
+                else:
+                    main_content = main_content[:237] + "..."
+            message = main_content + "Would love to connect."
+        else:
+            # Find the last complete sentence before 270 characters
+            last_period = message[:270].rfind('.')
+            if last_period > 0:
+                message = message[:last_period+1]
+            else:
+                message = message[:267] + "..."
+    
+    # Check if message is too short
+    if len(message) < 200:
+        # Try to add more context if possible
+        if "Would love to connect" in message:
+            connection_part = message.split("Would love to connect")[0]
+            if len(connection_part) < 180:
+                return None  # Message is too short, will need to regenerate
+        return None  # Message is too short, will need to regenerate
     
     return message
 
-# Generate message with Groq
 # Generate message with Groq using dynamic patterns
 def generate_message(person_name, content_data, company=None, designation=None):
     """Generate personalized message using Groq API with content rotation"""
@@ -267,13 +333,17 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # Construct precise prompt with dynamic patterns
         prompt = f"""
         Create a professional first-level outreach message for {person_name} based on their specific content.
-        MINIMUM 200 CHARACTERS.MAXIMUM 300 CHARACTERS. Be concise, professional, and reference the specific content.
+        The message must be between 200-270 characters. Be concise, professional, and reference the specific content.
         
         STRICTLY AVOID these words and phrases: exploring, interested, learning, No easy feat, 
         Impressive, Noteworthy, Remarkable, Fascinating, Admiring, Inspiring, 
         No small feat, No easy task, Stood out, rare to see.
         
-        IMPORTANT: Make each message unique and creative. Avoid using the same phrases repeatedly.
+        IMPORTANT: 
+        - Do not mention the person's company name or designation
+        - Make each message unique and creative
+        - Avoid using the same phrases repeatedly
+        - Ensure the message is complete and makes sense
         
         Use these patterns as inspiration but create variations:
         
@@ -311,7 +381,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
         
         6. For event participation:
         "Hi [Name],
-        I saw [company]'s recent focus on [topic] at [event]. Your work on [specific initiative] caught my attention. As someone passionate about [related interest], I'd love to connect and exchange perspectives.
+        I saw your recent focus on [topic] at [event]. Your work on [specific initiative] caught my attention. As someone passionate about [related interest], I'd love to connect and exchange perspectives.
         Best,
         Kingshuk"
         
@@ -326,16 +396,35 @@ def generate_message(person_name, content_data, company=None, designation=None):
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.3-70b-versatile",
             temperature=0.8,  # Higher temperature for more creativity
-            max_tokens=170
+            max_tokens=150
         )
         
         message = chat_completion.choices[0].message.content.strip()
         
         # Ensure character limit and remove prohibited words
-        message = enforce_constraints(message)
+        message = enforce_constraints(message, company, designation)
+        
+        # If message is too short, try one more time with a different approach
+        if not message:
+            # Try a different prompt approach
+            alt_prompt = f"""
+            Create a concise professional message for {person_name} based on: {content_context}
+            Focus on their insights, avoid company/designation mentions.
+            Length: 200-270 characters. End with a connection request.
+            """
+            
+            alt_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": alt_prompt}],
+                model="llama-3.3-70b-versatile",
+                temperature=0.7,
+                max_tokens=120
+            )
+            
+            message = alt_completion.choices[0].message.content.strip()
+            message = enforce_constraints(message, company, designation)
         
         # Store the generated message with its source info
-        if selected_content:
+        if message and selected_content:
             message_data = {
                 "message": message,
                 "source_title": selected_content['title'],
@@ -351,7 +440,8 @@ def generate_message(person_name, content_data, company=None, designation=None):
     except Exception as e:
         st.error(f"Error generating message: {str(e)}")
         return None
-        # Navigation functions
+
+# Navigation functions
 def show_previous_message():
     """Show the previous generated message"""
     if st.session_state.current_message_index > 0:
@@ -431,8 +521,9 @@ def main():
                 if message:
                     # Display results
                     st.success("Message generated successfully!")
+                    st.caption(f"Character count: {len(message)}/270")
                 else:
-                    st.error("Failed to generate message. Please check your Groq API key.")
+                    st.error("Failed to generate a message within the required length. Please try again.")
             else:
                 # Offer manual input as fallback
                 with st.expander("Manual Content Input"):
@@ -455,8 +546,9 @@ def main():
                             
                             if message:
                                 st.success("Message generated successfully!")
+                                st.caption(f"Character count: {len(message)}/270")
                             else:
-                                st.error("Failed to generate message. Please check your Groq API key.")
+                                st.error("Failed to generate a message within the required length. Please try again.")
                         else:
                             st.error("Please provide both a title and content summary")
     
@@ -485,7 +577,7 @@ def main():
         if 0 <= st.session_state.current_message_index < len(st.session_state.generated_messages):
             current_msg = st.session_state.generated_messages[st.session_state.current_message_index]
             st.text_area("Generated Message", current_msg["message"], height=150, key="message_output")
-            st.caption(f"Character count: {len(current_msg['message'])}/250")
+            st.caption(f"Character count: {len(current_msg['message'])}/270")
             
             # Show source info for this message
             with st.expander("View Source Info"):
