@@ -348,15 +348,15 @@ def generate_message(person_name, content_data, company=None, designation=None):
 
         PATTERN 1:
         "Hi [Name],
-        Saw your note on [topic], especially with how [specific point]. I think a lot about [related thought]. Let's connect and exchange ideas."
+        Saw your note on [topic], especially with how [specific point]. Let's connect and exchange ideas."
 
         PATTERN 2:
         "Hi [Name],
-        I liked your post on [topic]—especially your point about [specific insight]. [Brief observation]. Would love to connect."
+        I liked your post on [topic]—especially your point about [specific insight]. Would love to connect."
 
         PATTERN 3:
         "Hi [Name],
-        Your recent post on [topic] was insightful—the way you highlighted [specific aspect]. [Connection to impact]. Would be glad to connect."
+        Your recent post on [topic] was insightful—the way you highlighted [specific aspect]. Would be glad to connect."
 
         Content to reference:
         {content_context}
