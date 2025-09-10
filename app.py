@@ -223,7 +223,8 @@ def enforce_constraints(message, company=None, designation=None):
     prohibited_words = [
         "exploring", "interested", "learning", "No easy feat", "Impressive",
         "Noteworthy", "Remarkable", "Fascinating", "Admiring", "Inspiring",
-        "No small feat", "No easy task", "Stood out", "rare to see", "it's rare to see"
+        "No small feat", "No easy task", "Stood out", "rare to see", "it's rare to see",
+        "truly admire", "very engaging", "completely agree"
     ]
     
     for word in prohibited_words:
@@ -257,25 +258,25 @@ def enforce_constraints(message, company=None, designation=None):
             message = message + "\n\nWould love to connect."
     
     # Enforce character limits (200-270)
-    # if len(message) > 270:
-    #     # Try to preserve the connection phrase
-    #     if "Would love to connect" in message:
-    #         main_content = message.split("Would love to connect")[0]
-    #         if len(main_content) > 240:
-    #             # Find the last complete sentence before 240 characters
-    #             last_period = main_content[:240].rfind('.')
-    #             if last_period > 0:
-    #                 main_content = main_content[:last_period+1]
-    #             else:
-    #                 main_content = main_content[:237] + "..."
-    #         message = main_content + "Would love to connect."
-    #     else:
-    #         # Find the last complete sentence before 270 characters
-    #         last_period = message[:270].rfind('.')
-    #         if last_period > 0:
-    #             message = message[:last_period+1]
-    #         else:
-    #             message = message[:267] + "..."
+    if len(message) > 270:
+        # Try to preserve the connection phrase
+        if "Would love to connect" in message:
+            main_content = message.split("Would love to connect")[0]
+            if len(main_content) > 240:
+                # Find the last complete sentence before 240 characters
+                last_period = main_content[:240].rfind('.')
+                if last_period > 0:
+                    main_content = main_content[:last_period+1]
+                else:
+                    main_content = main_content[:237] + "..."
+            message = main_content + "Would love to connect."
+        else:
+            # Find the last complete sentence before 270 characters
+            last_period = message[:270].rfind('.')
+            if last_period > 0:
+                message = message[:last_period+1]
+            else:
+                message = message[:267] + "..."
     
     # Check if message is too short - enhance it instead of rejecting
     if len(message) < 200:
@@ -327,11 +328,12 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # More specific prompt with clearer examples (no signature in examples)
         prompt = f"""
         Create a professional first-level outreach message for {person_name} based on their specific content.
-        The message must be between 200-250 characters. Be concise, professional, and reference the specific content.
+        The message must be between 200-270 characters. Be concise, professional, and reference the specific content.
         
         STRICTLY AVOID these words and phrases: exploring, interested, learning, No easy feat, 
         Impressive, Noteworthy, Remarkable, Fascinating, Admiring, Inspiring, 
-        No small feat, No easy task, Stood out, rare to see, resonates with my own experience.
+        No small feat, No easy task, Stood out, rare to see, resonates with my own experience,
+        truly admire, very engaging, completely agree.
         
         IMPORTANT: 
         - Do not mention the person's company name or designation
@@ -340,42 +342,36 @@ def generate_message(person_name, content_data, company=None, designation=None):
         - Avoid using the same phrases repeatedly
         - Ensure the message is complete and makes sense
         - Focus on specific insights, not general praise
+        - Keep it concise and to the point (no long sentences)
         
         Use these EXACT patterns as templates but adapt them creatively:
 
-        PATTERN 1 (Specific insight):
+        PATTERN 1:
         "Hi [Name],
-        I appreciate your perspective on [topic]—specifically your point about [specific insight]. [Add creative observation about why this matters]. Would love to connect."
+        Saw your note on [topic], especially with how [specific point]. I think a lot about [related thought]. Let's connect and exchange ideas."
 
-        PATTERN 2 (Industry relevance):
+        PATTERN 2:
         "Hi [Name],
-        Your take on [topic] caught my attention, especially how you framed [specific aspect]. [Connect to broader industry context or challenge]. I'd be glad to connect."
+        I liked your post on [topic]—especially your point about [specific insight]. [Brief observation]. Would love to connect."
 
-        PATTERN 3 (Practical application):
+        PATTERN 3:
         "Hi [Name],
-        Found your perspective on [topic] quite practical—your approach to [specific method/technique] offers a fresh take on [challenge/opportunity]. Let's connect."
-
-        PATTERN 4 (Timely perspective):
-        "Hi [Name],
-        Your thoughts on [topic] are particularly relevant now as [industry/field] navigates [current challenge]. The way you highlighted [specific insight] stood out. Would love to connect."
-
-        PATTERN 5 (Nuanced understanding):
-        "Hi [Name],
-        The nuance in your perspective on [topic] is refreshing—especially how you differentiate between [concept A] and [concept B]. [Add brief personal insight]. Let's connect."
+        Your recent post on [topic] was insightful—the way you highlighted [specific aspect]. [Connection to impact]. Would be glad to connect."
 
         Content to reference:
         {content_context}
         
         Generate a unique, creative message for {person_name} that follows one of these patterns but with fresh language and perspectives.
         Make it specific to their content, not generic.
+        Keep it short and concise.
         """
         
         # Call Groq API
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.3-70b-versatile",
-            temperature=0.7,  # Higher temperature for more creativity
-            max_tokens=150  # Increased tokens for more detailed messages
+            temperature=0.8,  # Higher temperature for more creativity
+            max_tokens=150  # Reduced tokens for shorter messages
         )
         
         message = chat_completion.choices[0].message.content.strip()
@@ -433,7 +429,7 @@ def main():
         if not person_name:
             st.error("Please provide at least a person name")
         else:
-            with st.spinner("Searching for content about this person..."):
+            with st.spinner("Searching for content by this person..."):
                 # Search for content using Tavily with author-specific queries
                 content_data = search_content_by_person(person_name, company, designation)
                 st.session_state.content_data = content_data
@@ -481,7 +477,7 @@ def main():
                 if message:
                     # Display results
                     st.success("Message generated successfully!")
-                    st.caption(f"Character count: {len(message)}/250")
+                    st.caption(f"Character count: {len(message)}/270")
                 else:
                     st.error("Failed to generate a valid message. Please try again.")
             else:
