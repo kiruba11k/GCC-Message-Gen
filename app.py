@@ -241,7 +241,8 @@ def enforce_constraints(message, company=None, designation=None):
     message = re.sub(r'\s+', ' ', message).strip()
     
     # Ensure the message has a proper structure
-    if not any(phrase in message for phrase in ["Would love to connect", "Would be glad to connect", "I'd love to connect", "Let's connect"]):
+    connection_phrases = ["Would love to connect", "Would be glad to connect", "I'd love to connect", "Let's connect"]
+    if not any(phrase in message for phrase in connection_phrases):
         if "connect" in message.lower():
             # Find where "connect" appears and format from there
             connect_index = message.lower().find("connect")
@@ -294,14 +295,25 @@ def enforce_constraints(message, company=None, designation=None):
             else:
                 message = message[:267] + "..."
     
-    # Check if message is too short
+    # Check if message is too short - enhance it instead of rejecting
     if len(message) < 200:
-        # Try to add more context if possible
+        # Enhance short messages with additional content
+        enhancement_phrases = [
+            "I found your perspective particularly insightful.",
+            "This resonates with my own experience in the field.",
+            "Your approach to this topic is quite innovative.",
+            "This gives me a fresh perspective on the matter."
+        ]
+        
+        import random
+        enhancement = random.choice(enhancement_phrases)
+        
+        # Insert enhancement before the connection phrase
         if "Would love to connect" in message:
-            connection_part = message.split("Would love to connect")[0]
-            if len(connection_part) < 180:
-                return None  # Message is too short, will need to regenerate
-        return None  # Message is too short, will need to regenerate
+            parts = message.split("Would love to connect")
+            message = parts[0] + enhancement + " Would love to connect" + parts[1] if len(parts) > 1 else parts[0] + enhancement + " Would love to connect"
+        else:
+            message = message + " " + enhancement
     
     return message
 
@@ -404,25 +416,6 @@ def generate_message(person_name, content_data, company=None, designation=None):
         # Ensure character limit and remove prohibited words
         message = enforce_constraints(message, company, designation)
         
-        # If message is too short, try one more time with a different approach
-        if not message:
-            # Try a different prompt approach
-            alt_prompt = f"""
-            Create a concise professional message for {person_name} based on: {content_context}
-            Focus on their insights, avoid company/designation mentions.
-            Length: 200-270 characters. End with a connection request.
-            """
-            
-            alt_completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": alt_prompt}],
-                model="llama-3.3-70b-versatile",
-                temperature=0.7,
-                max_tokens=120
-            )
-            
-            message = alt_completion.choices[0].message.content.strip()
-            message = enforce_constraints(message, company, designation)
-        
         # Store the generated message with its source info
         if message and selected_content:
             message_data = {
@@ -523,7 +516,7 @@ def main():
                     st.success("Message generated successfully!")
                     st.caption(f"Character count: {len(message)}/270")
                 else:
-                    st.error("Failed to generate a message within the required length. Please try again.")
+                    st.error("Failed to generate a valid message. Please try again.")
             else:
                 # Offer manual input as fallback
                 with st.expander("Manual Content Input"):
@@ -548,7 +541,7 @@ def main():
                                 st.success("Message generated successfully!")
                                 st.caption(f"Character count: {len(message)}/270")
                             else:
-                                st.error("Failed to generate a message within the required length. Please try again.")
+                                st.error("Failed to generate a valid message. Please try again.")
                         else:
                             st.error("Please provide both a title and content summary")
     
