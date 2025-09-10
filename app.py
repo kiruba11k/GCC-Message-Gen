@@ -318,6 +318,7 @@ def enforce_constraints(message, company=None, designation=None):
     return message
 
 # Generate message with Groq using dynamic patterns
+# Generate message with Groq using dynamic patterns
 def generate_message(person_name, content_data, company=None, designation=None):
     """Generate personalized message using Groq API with content rotation"""
     if not groq_key:
@@ -342,65 +343,59 @@ def generate_message(person_name, content_data, company=None, designation=None):
         else:
             content_context = "No specific content found for reference."
         
-        # Construct precise prompt with dynamic patterns
+        # More specific prompt with clearer examples
         prompt = f"""
         Create a professional first-level outreach message for {person_name} based on their specific content.
         The message must be between 200-270 characters. Be concise, professional, and reference the specific content.
         
         STRICTLY AVOID these words and phrases: exploring, interested, learning, No easy feat, 
         Impressive, Noteworthy, Remarkable, Fascinating, Admiring, Inspiring, 
-        No small feat, No easy task, Stood out, rare to see.
+        No small feat, No easy task, Stood out, rare to see, resonates with my own experience.
         
         IMPORTANT: 
         - Do not mention the person's company name or designation
         - Make each message unique and creative
         - Avoid using the same phrases repeatedly
         - Ensure the message is complete and makes sense
+        - Focus on specific insights, not general praise
         
-        Use these patterns as inspiration but create variations:
-        
-        1. For posts with specific insights:
+        Use these EXACT patterns as templates but adapt them creatively:
+
+        PATTERN 1 (Specific insight):
         "Hi [Name],
-        I liked your post on [topic]—especially your point about [specific insight]. [Creative observation about the insight]. Would love to connect.
+        I appreciated your perspective on [topic]—specifically your point about [specific insight]. [Add creative observation about why this matters]. Would love to connect.
         Regards,
         Kingshuk"
-        
-        2. For insightful content:
+
+        PATTERN 2 (Industry relevance):
         "Hi [Name],
-        Your recent post on [topic] was insightful—the way you highlighted [specific aspect] was particularly engaging. [Connection to real-world impact].
-        Would be glad to connect.
+        Your take on [topic] caught my attention, especially how you framed [specific aspect]. [Connect to broader industry context or challenge]. I'd be glad to connect.
+        Best,
+        Kingshuk"
+
+        PATTERN 3 (Practical application):
+        "Hi [Name],
+        Found your perspective on [topic] quite practical—your approach to [specific method/technique] offers a fresh take on [challenge/opportunity]. Let's connect.
         Regards,
         Kingshuk"
-        
-        3. For career moves/experiences:
-        "Hi [Name]
-        Great to see your experience in [field]. I noticed your recent [development], and it's interesting to see your approach to [specific aspect].
-        I'd love to connect with you.
+
+        PATTERN 4 (Timely perspective):
+        "Hi [Name],
+        Your thoughts on [topic] are particularly relevant now as [industry/field] navigates [current challenge]. The way you highlighted [specific insight] stood out. Would love to connect.
         Best,
         Kingshuk"
-        
-        4. For timely observations:
+
+        PATTERN 5 (Nuanced understanding):
         "Hi [Name],
-        Saw your post on [topic]—[creative observation about timing/relevance]. As someone working on [related field], I'd love to connect and exchange ideas on [specific angle].
-        Best, 
+        The nuance in your perspective on [topic] is refreshing—especially how you differentiate between [concept A] and [concept B]. [Add brief personal insight]. Let's connect.
+        Regards,
         Kingshuk"
-        
-        5. For industry evolution:
-        "Hi [Name],
-        Your perspective on how [industry] is evolving resonates—especially your take on [specific nuance]. I often consider how [concept A] intersects with [concept B]. Let's connect and exchange ideas.
-        Best,
-        Kingshuk"
-        
-        6. For event participation:
-        "Hi [Name],
-        I saw your recent focus on [topic] at [event]. Your work on [specific initiative] caught my attention. As someone passionate about [related interest], I'd love to connect and exchange perspectives.
-        Best,
-        Kingshuk"
-        
+
         Content to reference:
         {content_context}
         
         Generate a unique, creative message for {person_name} that follows one of these patterns but with fresh language and perspectives.
+        Make it specific to their content, not generic.
         """
         
         # Call Groq API
@@ -408,7 +403,7 @@ def generate_message(person_name, content_data, company=None, designation=None):
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.3-70b-versatile",
             temperature=0.8,  # Higher temperature for more creativity
-            max_tokens=150
+            max_tokens=200  # Increased tokens for more detailed messages
         )
         
         message = chat_completion.choices[0].message.content.strip()
@@ -433,7 +428,6 @@ def generate_message(person_name, content_data, company=None, designation=None):
     except Exception as e:
         st.error(f"Error generating message: {str(e)}")
         return None
-
 # Navigation functions
 def show_previous_message():
     """Show the previous generated message"""
