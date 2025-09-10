@@ -254,46 +254,9 @@ def enforce_constraints(message, company=None, designation=None):
             message = message + "\n\nWould love to connect."
     
     # Ensure proper signature
-    if not message.endswith("Kingshuk"):
-        if "Kingshuk" in message:
-            # Extract everything up to and including Kingshuk
-            parts = message.split("Kingshuk")
-            if len(parts) > 1:
-                message = parts[0] + "Kingshuk"
-            else:
-                message = message + "\n\nRegards,\nKingshuk"
-        else:
-            message = message + "\n\nRegards,\nKingshuk"
+   
     
     # Enforce character limits (200-270)
-    if len(message) > 270:
-        # Try to preserve the signature and connection phrase
-        if "\nRegards,\nKingshuk" in message:
-            main_content = message.split("\nRegards,\nKingshuk")[0]
-            if len(main_content) > 240:
-                # Find the last complete sentence before 240 characters
-                last_period = main_content[:240].rfind('.')
-                if last_period > 0:
-                    main_content = main_content[:last_period+1]
-                else:
-                    main_content = main_content[:237] + "..."
-            message = main_content + "\nRegards,\nKingshuk"
-        elif "Would love to connect" in message:
-            main_content = message.split("Would love to connect")[0]
-            if len(main_content) > 240:
-                last_period = main_content[:240].rfind('.')
-                if last_period > 0:
-                    main_content = main_content[:last_period+1]
-                else:
-                    main_content = main_content[:237] + "..."
-            message = main_content + "Would love to connect."
-        else:
-            # Find the last complete sentence before 270 characters
-            last_period = message[:270].rfind('.')
-            if last_period > 0:
-                message = message[:last_period+1]
-            else:
-                message = message[:267] + "..."
     
     # Check if message is too short - enhance it instead of rejecting
     if len(message) < 200:
